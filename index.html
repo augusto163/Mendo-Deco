@@ -1,0 +1,2882 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BambuFarm OS - Gestión de Granja 3D</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bambu: {
+              50: '#ecfdf5',
+              500: '#00ae42', // Bambu Lab Green
+              600: '#009237',
+              700: '#00752c',
+            },
+            zinc: {
+              850: '#1f1f23',
+              900: '#18181b',
+              950: '#09090b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- JSZip CDN for real .3mf client-side parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Chart.js CDN for interactive day-by-day financial charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+    .drop-active {
+      border-color: #00ae42 !important;
+      background-color: rgba(0, 174, 66, 0.08) !important;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col selection:bg-bambu-500 selection:text-zinc-950 antialiased">
+
+  <!-- TOPBAR / HEADER -->
+  <header class="border-b border-zinc-800/80 bg-zinc-900/70 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-bambu-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-bambu-500/20 text-zinc-950">
+          <i data-lucide="layers" class="w-6 h-6 stroke-[2.5]"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold tracking-tight text-lg text-white">BambuFarm<span class="text-bambu-500">.OS</span></span>
+            <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider bg-bambu-500/10 text-bambu-500 border border-bambu-500/20 rounded-full font-semibold">Demo MVP</span>
+          </div>
+          <p class="text-xs text-zinc-400">Control de Flota & Cotizador Bambu Studio</p>
+        </div>
+      </div>
+
+      <!-- Live Fleet Status Indicator -->
+      <div class="hidden md:flex items-center space-x-6 text-xs">
+        <div class="flex items-center space-x-2 bg-zinc-950/60 px-3 py-1.5 rounded-lg border border-zinc-800">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-zinc-300 font-medium">3 Impresoras Operativas</span>
+          <span class="text-zinc-500 font-mono">| Bambu P1S / X1-C</span>
+        </div>
+
+        <div class="flex items-center space-x-2 text-zinc-400">
+          <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+          <span>Luz: <strong class="text-zinc-200 font-mono">$0.15/kWh</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- NAVIGATION TABS -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between border-b border-zinc-800/80 mb-8 pb-4 gap-4">
+      <div class="flex flex-wrap gap-2 bg-zinc-900/90 p-1.5 rounded-xl border border-zinc-800">
+        <button id="tab-btn-jobs" onclick="switchTab('jobs')" class="flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 bg-zinc-800 text-white shadow-sm">
+          <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i>
+          <span>1. Trabajos &amp; Flota</span>
+          <span id="badge-active-jobs" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono font-bold">2 en curso</span>
+        </button>
+        <button id="tab-btn-finance" onclick="switchTab('finance')" class="flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50">
+          <i data-lucide="trending-up" class="w-4 h-4 text-bambu-500"></i>
+          <span>2. Finanzas &amp; Gráfico Diario</span>
+          <span id="badge-finance-roi" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-zinc-800 text-emerald-400 font-mono font-semibold">ROI 18%</span>
+        </button>
+        <button id="tab-btn-calculator" onclick="switchTab('calculator')" class="flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50">
+          <i data-lucide="calculator" class="w-4 h-4 text-emerald-400"></i>
+          <span>3. Cotizador (.3MF Bambu)</span>
+          <span class="relative flex h-2 w-2 ml-0.5">
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-bambu-500"></span>
+          </span>
+        </button>
+        <button id="tab-btn-inventory" onclick="switchTab('inventory')" class="flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50">
+          <i data-lucide="package" class="w-4 h-4 text-bambu-500"></i>
+          <span>4. Inventario &amp; Stock</span>
+          <span id="badge-total-spools" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-zinc-700 text-zinc-300 font-mono">4</span>
+        </button>
+      </div>
+
+      <!-- Quick Action / Status -->
+      <div class="flex items-center gap-2">
+        <button onclick="abrirModalNuevoTrabajo()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-zinc-950 bg-bambu-500 hover:bg-bambu-400 shadow-md shadow-bambu-500/20 transition active:scale-95">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>+ Cargar Trabajo</span>
+        </button>
+        <button onclick="resetDemoData()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-zinc-400 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>Restablecer Mock</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- TAB 1: TRABAJOS & COLA DE PRODUCCIÓN (EN EJECUCIÓN / EN ESPERA)  -->
+    <!-- ================================================================= -->
+    <section id="tab-content-jobs" class="space-y-6">
+      <!-- Period Selector & Summary Banner -->
+      <div class="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+            <i data-lucide="activity" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>Control de Flota y Trabajos de Producción</span>
+              <span id="jobs-filter-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-semibold">Esta Semana</span>
+            </h2>
+            <p id="jobs-filter-summary" class="text-xs text-zinc-400 mt-0.5">
+              Visualizando producciones de <strong>esta semana</strong>: 8 trabajos registrados (2 en ejecución, 2 en espera, 4 terminados).
+            </p>
+          </div>
+        </div>
+
+        <!-- Period Selector Buttons -->
+        <div class="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs">
+          <button onclick="setPeriodoFiltro('general')" id="filter-btn-general" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition font-medium">General</button>
+          <button onclick="setPeriodoFiltro('semana')" id="filter-btn-semana" class="px-3 py-1.5 rounded-lg bg-zinc-800 text-emerald-400 font-semibold shadow-sm border border-zinc-700 transition">Esta Semana</button>
+          <button onclick="setPeriodoFiltro('mes')" id="filter-btn-mes" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition font-medium">Este Mes</button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards for Jobs -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. En Ejecución -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>En Ejecución (Imprimiendo)</span>
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-jobs-running" class="text-3xl font-extrabold text-white font-mono">2</span>
+            <span class="text-xs text-emerald-400 font-medium">de 3 impresoras</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Bambu P1S y X1-Carbon activas</div>
+        </div>
+
+        <!-- 2. En Espera -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>En Lista de Espera</span>
+            <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-jobs-waiting" class="text-3xl font-extrabold text-amber-400 font-mono">2</span>
+            <span class="text-xs text-zinc-400 font-mono">en cola</span>
+          </div>
+          <div id="stat-jobs-waiting-time" class="mt-1 text-xs text-zinc-500">5h 30m estimadas de impresión</div>
+        </div>
+
+        <!-- 3. Completados -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Completados en Período</span>
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-jobs-completed" class="text-3xl font-extrabold text-emerald-400 font-mono">4</span>
+            <span class="text-xs text-zinc-400">piezas terminadas</span>
+          </div>
+          <div id="stat-jobs-completed-grams" class="mt-1 text-xs text-zinc-500">685g de filamento consumido</div>
+        </div>
+
+        <!-- 4. Facturación del Período -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Producción / Facturación</span>
+            <i data-lucide="dollar-sign" class="w-4 h-4 text-bambu-500"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-jobs-revenue" class="text-3xl font-extrabold text-white font-mono">$88.50</span>
+            <span id="stat-jobs-net" class="text-xs text-emerald-400 font-bold font-mono">+$58.21 neto</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Rentabilidad media: ~65%</div>
+        </div>
+      </div>
+
+      <!-- SECTION: EN EJECUCIÓN (IMPRESORAS EN VIVO) -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="printer" class="w-4 h-4 text-bambu-500"></i>
+              <span>Flota en Ejecución (Trabajos en Máquina)</span>
+            </h3>
+            <span class="text-xs text-zinc-500 font-mono hidden sm:inline">• Telemetría de avance en tiempo real</span>
+          </div>
+          <button onclick="abrirModalNuevoTrabajo()" class="flex items-center gap-1.5 px-3 py-1.5 bg-bambu-500/10 hover:bg-bambu-500/20 text-bambu-400 border border-bambu-500/30 rounded-xl text-xs font-semibold transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>+ Nuevo Trabajo Rápido</span>
+          </button>
+        </div>
+
+        <div id="printers-live-grid" class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <!-- Rendered dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- SECTION: EN LISTA DE ESPERA (COLA) -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4 text-amber-400"></i>
+              <span>Trabajos en Lista de Espera (Cola de Producción)</span>
+            </h3>
+            <span id="count-waiting-badge" class="px-2 py-0.5 text-xs rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">2 pendientes</span>
+          </div>
+          <button onclick="switchTab('calculator')" class="text-xs text-zinc-400 hover:text-emerald-400 transition flex items-center gap-1">
+            <span>Cotizar nuevo .3MF para la cola</span>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-zinc-950/70 text-zinc-400 font-mono uppercase text-[11px] border-b border-zinc-800">
+                <tr>
+                  <th class="p-3.5">Cód / Prioridad</th>
+                  <th class="p-3.5">Pieza / Archivo</th>
+                  <th class="p-3.5">Cliente</th>
+                  <th class="p-3.5">Material Requerido</th>
+                  <th class="p-3.5">Peso &amp; Tiempo</th>
+                  <th class="p-3.5">Costo Prod.</th>
+                  <th class="p-3.5">Precio Venta</th>
+                  <th class="p-3.5 text-emerald-400">Ganancia Est.</th>
+                  <th class="p-3.5 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="waiting-jobs-tbody" class="divide-y divide-zinc-800/60 font-sans">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: HISTORIAL DE TRABAJOS DEL PERÍODO -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+            <span>Historial de Trabajos en el Período Seleccionado</span>
+          </h3>
+          <span class="text-xs text-zinc-500">Orden cronológico</span>
+        </div>
+
+        <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-zinc-950/70 text-zinc-400 font-mono uppercase text-[11px] border-b border-zinc-800">
+                <tr>
+                  <th class="p-3.5">Fecha</th>
+                  <th class="p-3.5">Pieza</th>
+                  <th class="p-3.5">Cliente</th>
+                  <th class="p-3.5">Impresora / Bobina</th>
+                  <th class="p-3.5">Consumo</th>
+                  <th class="p-3.5 text-rose-300">Costo Total</th>
+                  <th class="p-3.5 text-zinc-200">Precio Cobrado</th>
+                  <th class="p-3.5 text-emerald-400 font-bold">Ganancia Neta (Resta)</th>
+                  <th class="p-3.5 text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="history-jobs-tbody" class="divide-y divide-zinc-800/60 font-mono">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- TAB 2: BALANCE ECONÓMICO & FINANZAS                               -->
+    <!-- ================================================================= -->
+    <section id="tab-content-finance" class="hidden space-y-8">
+      
+      <!-- Top Period Controls for Finance -->
+      <div class="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+            <i data-lucide="trending-up" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>Balance Económico, Rentabilidad &amp; Cuentas</span>
+              <span id="finance-filter-badge" class="px-2 py-0.5 text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-semibold">Esta Semana</span>
+            </h2>
+            <p id="finance-filter-summary" class="text-xs text-zinc-400 mt-0.5">
+              Control de inversiones, costos directos por trabajo y resultado neto ("la resta").
+            </p>
+          </div>
+        </div>
+
+        <!-- Period Selector Buttons -->
+        <div class="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs">
+          <button onclick="setPeriodoFiltro('general')" id="fin-filter-btn-general" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition font-medium">General</button>
+          <button onclick="setPeriodoFiltro('semana')" id="fin-filter-btn-semana" class="px-3 py-1.5 rounded-lg bg-zinc-800 text-emerald-400 font-semibold shadow-sm border border-zinc-700 transition">Esta Semana</button>
+          <button onclick="setPeriodoFiltro('mes')" id="fin-filter-btn-mes" class="px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition font-medium">Este Mes</button>
+        </div>
+      </div>
+
+      <!-- INVERSIÓN INICIAL & ACTIVOS (Requerimiento explícito del usuario) -->
+      <div class="bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-zinc-950 border border-zinc-800/90 rounded-2xl p-6 shadow-2xl space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono uppercase font-bold tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">CAPEX / Activos</span>
+              <h3 class="text-lg font-extrabold text-white">Inversión Inicial &amp; Equipamiento de Granja</h3>
+            </div>
+            <p class="text-xs text-zinc-400 mt-1">Detalle de capital inmovilizado en impresoras Bambu Lab, repuestos, herramientas y stock inicial.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="abrirModalInversion()" class="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-medium transition">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-bambu-500"></i>
+              <span>+ Agregar Activo</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inversion Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <!-- Maquinaria -->
+          <div class="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-4">
+            <div class="flex items-center justify-between text-xs text-zinc-400">
+              <span>Flota de Impresoras (3)</span>
+              <i data-lucide="printer" class="w-4 h-4 text-bambu-500"></i>
+            </div>
+            <div class="mt-2 text-2xl font-bold font-mono text-white">$2,850.00</div>
+            <div class="mt-1 text-[11px] text-zinc-500 space-y-0.5 font-mono">
+              <div>• Bambu P1S + AMS: $950</div>
+              <div>• Bambu X1-C + AMS: $1,500</div>
+              <div>• Bambu A1 Mini: $400</div>
+            </div>
+          </div>
+
+          <!-- Herramientas y Accesorios -->
+          <div class="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-4">
+            <div class="flex items-center justify-between text-xs text-zinc-400">
+              <span>Herramientas &amp; Setup</span>
+              <i data-lucide="wrench" class="w-4 h-4 text-amber-400"></i>
+            </div>
+            <div class="mt-2 text-2xl font-bold font-mono text-white">$280.00</div>
+            <div class="mt-1 text-[11px] text-zinc-500 space-y-0.5 font-mono">
+              <div>• 3 Placas PEI texturadas: $90</div>
+              <div>• Boquillas acero endurecido: $45</div>
+              <div>• Secador Sunlu S2: $65</div>
+              <div>• Mesa y herramientas: $80</div>
+            </div>
+          </div>
+
+          <!-- Insumos Iniciales -->
+          <div class="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-4">
+            <div class="flex items-center justify-between text-xs text-zinc-400">
+              <span>Stock Inicial Filamentos</span>
+              <i data-lucide="disc" class="w-4 h-4 text-emerald-400"></i>
+            </div>
+            <div class="mt-2 text-2xl font-bold font-mono text-white">$96.00</div>
+            <div class="mt-1 text-[11px] text-zinc-500 space-y-0.5 font-mono">
+              <div>• 4 bobinas 1kg (PLA+, PETG, Silk)</div>
+              <div>• Stock activo actual: <span id="inv-current-stock-val" class="text-zinc-300 font-semibold">$54.25</span></div>
+            </div>
+          </div>
+
+          <!-- Total Inversión & ROI -->
+          <div class="bg-gradient-to-br from-emerald-950/40 to-zinc-950 border border-emerald-500/30 rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs text-emerald-400 font-semibold">
+                <span>INVERSIÓN TOTAL INICIAL</span>
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+              </div>
+              <div id="kpi-total-inversion" class="mt-2 text-2xl font-black font-mono text-white">$3,226.00</div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-emerald-500/20">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-zinc-400">Recupero de Inversión:</span>
+                <span id="kpi-roi-percent" class="font-bold text-emerald-400">18.5%</span>
+              </div>
+              <div class="w-full h-2 bg-zinc-900 rounded-full mt-1.5 overflow-hidden border border-zinc-800">
+                <div id="kpi-roi-bar" class="h-full bg-gradient-to-r from-bambu-500 to-emerald-400 rounded-full transition-all duration-500" style="width: 18.5%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-zinc-500 font-mono mt-1">
+                <span>Ganancia Neta: <strong id="kpi-roi-profit" class="text-zinc-300">$597.10</strong></span>
+                <span>Objetivo: $3,226</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TARJETAS DE RESULTADOS ECONÓMICOS (Ventas, Costos, Ganancia Neta / Resta) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Ingresos -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Ingresos Totales (Ventas)</span>
+            <i data-lucide="badge-dollar-sign" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="fin-stat-revenue" class="text-3xl font-extrabold text-white font-mono">$242.03</span>
+            <span id="fin-stat-jobs-count" class="text-xs text-zinc-400">en 8 trabajos</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Cobrado o presupuestado</div>
+        </div>
+
+        <!-- Costos de Producción -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Costos Totales de Producción</span>
+            <i data-lucide="coins" class="w-4 h-4 text-rose-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="fin-stat-cost" class="text-3xl font-extrabold text-rose-400 font-mono">$66.85</span>
+            <span class="text-xs text-zinc-400">gasto directo</span>
+          </div>
+          <div id="fin-stat-cost-breakdown" class="mt-1 text-[11px] text-zinc-500 font-mono">
+            Filamento + Luz + Amortiz + Operador
+          </div>
+        </div>
+
+        <!-- Ganancia Neta ("La Resta") -->
+        <div class="bg-zinc-900/60 border border-emerald-500/40 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-900 to-emerald-950/30">
+          <div class="flex items-center justify-between text-emerald-400 text-xs font-bold uppercase tracking-wider">
+            <span>Ganancia Neta ("La Resta")</span>
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="fin-stat-net" class="text-3xl font-black text-emerald-400 font-mono">+$175.18</span>
+            <span id="fin-stat-margin" class="text-xs text-emerald-300 font-semibold font-mono">72.4% s/ venta</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-400">Margen neto de utilidad en mano</div>
+        </div>
+
+        <!-- Desglose de Gastos en % -->
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Composición del Costo</span>
+            <i data-lucide="pie-chart" class="w-4 h-4 text-bambu-500"></i>
+          </div>
+          <div class="mt-2 space-y-1 text-xs font-mono">
+            <div class="flex justify-between"><span class="text-zinc-400">Filamento:</span> <span id="fin-cost-fil" class="text-zinc-200 font-bold">$34.17</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Electricidad:</span> <span id="fin-cost-elec" class="text-zinc-200 font-bold">$1.82</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Amortiz. Máquinas:</span> <span id="fin-cost-mach" class="text-zinc-200 font-bold">$5.26</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Mano de Obra:</span> <span id="fin-cost-labor" class="text-zinc-200 font-bold">$25.60</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTENEDOR DEL GRÁFICO INTERACTIVO DÍA A DÍA -->
+      <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-bambu-500"></i>
+              <span>Evolución Económica Día a Día (Ingresos, Costos y Ganancia Neta)</span>
+            </h3>
+            <p class="text-xs text-zinc-400 mt-0.5">Visualización dinámica que se recalcula automáticamente con cada trabajo cargado o completado.</p>
+          </div>
+
+          <!-- Graph controls (Daily vs Cumulative) -->
+          <div class="flex items-center gap-2">
+            <div class="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs">
+              <button onclick="setChartMode('daily')" id="btn-chart-daily" class="px-3 py-1 rounded-lg bg-zinc-800 text-emerald-400 font-semibold shadow-sm transition">Valores Diarios</button>
+              <button onclick="setChartMode('cumulative')" id="btn-chart-cumulative" class="px-3 py-1 rounded-lg text-zinc-400 hover:text-white transition">Acumulado Continuo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend Tags -->
+        <div class="flex flex-wrap items-center gap-4 text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+            <span class="text-zinc-300">Ingresos / Ventas ($)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+            <span class="text-zinc-300">Costos de Producción ($)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-bambu-500 inline-block ring-2 ring-bambu-500/20"></span>
+            <span class="text-white font-bold">Ganancia Neta ("La Resta") ($)</span>
+          </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="relative w-full h-72 sm:h-80 bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/60">
+          <canvas id="dailyFinanceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- DETALLE ECONÓMICO POR TRABAJO (DESGLOSE Y LA RESTA) -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="receipt" class="w-4 h-4 text-bambu-500"></i>
+            <span>Detalle Económico por Trabajo (Cuentas Unitarias &amp; Ganancia Neta)</span>
+          </h3>
+          <span class="text-xs text-zinc-400">Actualizado con cada orden</span>
+        </div>
+
+        <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead class="bg-zinc-950/70 text-zinc-400 uppercase text-[11px] border-b border-zinc-800">
+                <tr>
+                  <th class="p-3.5">Fecha</th>
+                  <th class="p-3.5">Trabajo / Pieza</th>
+                  <th class="p-3.5">Cliente</th>
+                  <th class="p-3.5">Costo Filamento</th>
+                  <th class="p-3.5">Luz + Amort + Mano Obra</th>
+                  <th class="p-3.5 text-rose-400 font-bold">Costo Total</th>
+                  <th class="p-3.5 text-zinc-200 font-bold">Precio Cobrado</th>
+                  <th class="p-3.5 text-emerald-400 font-bold">Ganancia Neta (Resta)</th>
+                  <th class="p-3.5 text-center">Rentabilidad</th>
+                </tr>
+              </thead>
+              <tbody id="finance-jobs-tbody" class="divide-y divide-zinc-800/60">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- TAB 4: INVENTARIO DE BOBINAS (STOCK)                             -->
+    <!-- ================================================================= -->
+    <section id="tab-content-inventory" class="hidden space-y-6">
+      <!-- Inventory Header Stats -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm relative overflow-hidden">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Bobinas Registradas</span>
+            <i data-lucide="disc" class="w-4 h-4 text-zinc-500"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-total-spools" class="text-3xl font-extrabold text-white font-mono">4</span>
+            <span class="text-xs text-emerald-400 font-medium">100% calibradas</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Marcas: eSun, Grilon3, Bambu Lab</div>
+          <div class="absolute -right-2 -bottom-2 opacity-5 text-bambu-500 pointer-events-none">
+            <i data-lucide="disc" class="w-24 h-24"></i>
+          </div>
+        </div>
+
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Filamento Total en Stock</span>
+            <i data-lucide="scale" class="w-4 h-4 text-bambu-500"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-total-weight" class="text-3xl font-extrabold text-white font-mono">2,310</span>
+            <span class="text-xs text-zinc-400 font-mono">g (2.31 kg)</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Capacidad máx: 4,000 g</div>
+        </div>
+
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Inversión Inmovilizada</span>
+            <i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-total-capital" class="text-3xl font-extrabold text-white font-mono">$54.25</span>
+            <span class="text-xs text-zinc-400">Costo real stock</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">Valor compras iniciales: $98.00</div>
+        </div>
+
+        <div class="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
+          <div class="flex items-center justify-between text-zinc-400 text-xs font-medium">
+            <span>Alerta de Reposición</span>
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="stat-low-stock-count" class="text-3xl font-extrabold text-rose-400 font-mono">1</span>
+            <span class="text-xs text-rose-300 font-medium">bobina &lt; 20%</span>
+          </div>
+          <div class="mt-1 text-xs text-zinc-500">PETG Blanco requiere recambio</div>
+        </div>
+      </div>
+
+      <!-- Spool Cards Grid -->
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>Bobinas Activas en Rack / AMS</span>
+          <span class="text-xs font-normal text-zinc-400">(Monitoreo en tiempo real)</span>
+        </h2>
+        <div class="text-xs text-zinc-400 flex items-center gap-4">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Normal (&gt;50%)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Medio (20-50%)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Crítico (&lt;20%)</span>
+        </div>
+      </div>
+
+      <div id="spools-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <!-- Rendered dynamically by JS -->
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- TAB 2: COTIZADOR (.3MF BAMBU STUDIO)                             -->
+    <!-- ================================================================= -->
+    <section id="tab-content-calculator" class="hidden space-y-8">
+      
+      <!-- Top banner simulator notification -->
+      <div class="bg-gradient-to-r from-bambu-500/10 via-emerald-500/5 to-transparent border border-bambu-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-bambu-500/20 text-bambu-500 rounded-xl">
+            <i data-lucide="cpu" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white">Motor de Cotización Instantánea Bambu Studio</h3>
+            <p class="text-xs text-zinc-400">Calcula costos energéticos, amortización por hora de máquina y consumo exacto de material del archivo .3mf.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-zinc-400">Presets de prueba:</span>
+          <button onclick="applyPreset('organizer')" class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg border border-zinc-700 font-medium transition">
+            Organizador (120g / 3h)
+          </button>
+          <button onclick="applyPreset('keychain')" class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg border border-zinc-700 font-medium transition">
+            Llavero (35g / 45m)
+          </button>
+          <button onclick="applyPreset('helmet')" class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg border border-zinc-700 font-medium transition">
+            Casco Escala (480g / 14h)
+          </button>
+        </div>
+      </div>
+
+      <!-- Interactive Grid: Left Slicer Input & Form / Right Calculations -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- LEFT COLUMN: Slicer Dropzone & Parameters (7 Cols) -->
+        <div class="lg:col-span-7 space-y-6">
+          
+          <!-- Dropzone Card -->
+          <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 relative overflow-hidden shadow-xl">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                <i data-lucide="file-code" class="w-4 h-4 text-bambu-500"></i>
+                Archivo Laminado (.3MF)
+              </span>
+              <span id="file-status-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700">
+                Esperando archivo
+              </span>
+            </div>
+
+            <!-- Input File Real (Oculto) -->
+            <input type="file" id="real-file-input" accept=".3mf" onchange="handleRealFile(event)" class="hidden" />
+
+            <!-- Drag & Drop Zone Real -->
+            <div id="dropzone" onclick="document.getElementById('real-file-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" class="border-2 border-dashed border-zinc-700 hover:border-bambu-500/80 bg-zinc-950/60 hover:bg-zinc-950/90 transition-all duration-300 rounded-2xl p-6 text-center cursor-pointer group">
+              <div class="flex flex-col items-center justify-center space-y-3">
+                <div id="dropzone-icon" class="w-14 h-14 rounded-2xl bg-zinc-800/80 group-hover:bg-bambu-500/20 group-hover:text-bambu-500 text-zinc-400 flex items-center justify-center transition-all duration-300 shadow-inner">
+                  <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+                </div>
+                <div>
+                  <p id="dropzone-filename" class="text-sm font-semibold text-zinc-200 group-hover:text-white">
+                    Arrastra tu archivo .3mf de Bambu Studio aquí o haz clic para examinar
+                  </p>
+                  <p class="text-xs text-zinc-500 mt-1">Lector nativo con JSZip: extrae peso y tiempo de impresión al instante</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="inline-flex items-center gap-1.5 text-xs text-bambu-500 bg-bambu-500/10 px-3 py-1 rounded-full font-medium border border-bambu-500/20">
+                    <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                    <span>Subir archivo .3mf real</span>
+                  </div>
+                  <button type="button" onclick="event.stopPropagation(); simulateFileUpload();" class="text-[11px] text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 px-2.5 py-1 rounded-full border border-zinc-700 transition">
+                    ⚡ Cargar demo
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- File Details Pills (shown when loaded) -->
+            <div id="file-metadata" class="mt-4 grid grid-cols-3 gap-3">
+              <div class="bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-mono">Nombre Proyecto</span>
+                <span id="meta-filename" class="text-xs font-semibold text-zinc-300 truncate block">Bambu_Organizador.3mf</span>
+              </div>
+              <div class="bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-mono">Placas / Capas</span>
+                <span id="meta-plates" class="text-xs font-semibold text-zinc-300 block font-mono">Placa 1 &bull; 0.20mm</span>
+              </div>
+              <div class="bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-800">
+                <span class="text-[10px] text-zinc-500 block uppercase font-mono">Boquilla / Infill</span>
+                <span id="meta-nozzle" class="text-xs font-semibold text-zinc-300 block font-mono">0.4mm &bull; 15% Grid</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Parameters Tuning Form -->
+          <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-bambu-500"></i>
+              <span>Parámetros de Producción & Costos Base</span>
+            </h4>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Impresora Selector -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                  <span>Impresora de Granja</span>
+                  <span id="printer-specs" class="text-[11px] font-mono text-bambu-500">0.28 kW &bull; $950</span>
+                </label>
+                <select id="select-printer" onchange="calculateAll()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-bambu-500 transition">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+
+              <!-- Bobina Selector -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                  <span>Bobina de Material</span>
+                  <span id="spool-cost-gram" class="text-[11px] font-mono text-emerald-400">$0.022 / g</span>
+                </label>
+                <select id="select-spool" onchange="calculateAll()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-bambu-500 transition">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+
+            <!-- Metric Inputs (Grams & Print Time) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-zinc-400 flex items-center gap-1">
+                  <i data-lucide="scale" class="w-3.5 h-3.5 text-zinc-500"></i>
+                  <span>Gramos Requeridos</span>
+                </label>
+                <div class="relative">
+                  <input type="number" id="input-grams" value="120" min="1" max="2000" oninput="calculateAll()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-zinc-100 focus:outline-none focus:border-bambu-500 transition pl-3 pr-10" />
+                  <span class="absolute right-3 top-2.5 text-xs text-zinc-500 font-mono">g</span>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-zinc-400 flex items-center gap-1">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-zinc-500"></i>
+                  <span>Tiempo Impresión</span>
+                </label>
+                <div class="relative">
+                  <input type="number" id="input-print-time" value="180" min="1" max="10000" oninput="calculateAll()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-zinc-100 focus:outline-none focus:border-bambu-500 transition pl-3 pr-12" />
+                  <span class="absolute right-3 top-2.5 text-xs text-zinc-500 font-mono">min</span>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-zinc-400 flex items-center gap-1">
+                  <i data-lucide="user-check" class="w-3.5 h-3.5 text-zinc-500"></i>
+                  <span>Mano Obra / Prep</span>
+                </label>
+                <div class="relative">
+                  <input type="number" id="input-operator-time" value="15" min="0" max="600" oninput="calculateAll()" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-zinc-100 focus:outline-none focus:border-bambu-500 transition pl-3 pr-12" />
+                  <span class="absolute right-3 top-2.5 text-xs text-zinc-500 font-mono">min</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rates & Margin Sliders -->
+            <div class="border-t border-zinc-800/80 pt-4 space-y-4">
+              <div class="flex items-center justify-between">
+                <label for="slider-margin" class="text-xs font-semibold text-zinc-300 flex items-center gap-2">
+                  <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                  <span>Margen de Ganancia Deseado:</span>
+                </label>
+                <span id="label-margin" class="font-mono text-sm font-extrabold text-bambu-500 bg-bambu-500/10 px-2.5 py-0.5 rounded-md border border-bambu-500/20">
+                  +150%
+                </span>
+              </div>
+              <input type="range" id="slider-margin" min="30" max="400" step="5" value="150" oninput="calculateAll()" class="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-bambu-500" />
+              <div class="flex justify-between text-[11px] text-zinc-500 font-mono">
+                <span>+30% (Competitivo)</span>
+                <span>+150% (Recomendado)</span>
+                <span>+400% (Piezas únicas)</span>
+              </div>
+            </div>
+
+            <!-- Config Costos (Tarifas globales) accordion/details -->
+            <details class="group bg-zinc-950/60 rounded-xl border border-zinc-800/60 p-3 text-xs">
+              <summary class="cursor-pointer text-zinc-400 font-medium flex items-center justify-between select-none">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+                  Tarifas del Taller (Luz y Operario)
+                </span>
+                <span class="text-zinc-600 group-open:rotate-180 transition-transform">&darr;</span>
+              </summary>
+              <div class="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-zinc-800">
+                <div>
+                  <label class="text-[11px] text-zinc-500 block mb-1">Costo kWh Electricidad</label>
+                  <input type="number" id="input-kwh-rate" value="0.15" step="0.01" oninput="calculateAll()" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-200" />
+                </div>
+                <div>
+                  <label class="text-[11px] text-zinc-500 block mb-1">Costo Hora Operario ($/h)</label>
+                  <input type="number" id="input-operator-rate" value="8.00" step="0.5" oninput="calculateAll()" class="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-200" />
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Real-Time Cost Cards & Big Summary (5 Cols) -->
+        <div class="lg:col-span-5 space-y-6">
+          
+          <!-- Big KPI Cards (Total Cost & Suggested Price) -->
+          <div class="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-48 h-48 bg-bambu-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+              <span class="text-xs font-mono tracking-wider uppercase text-zinc-400">Resultado de Cotización</span>
+              <span id="stock-check-badge" class="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                Stock suficiente
+              </span>
+            </div>
+
+            <!-- Big Price -->
+            <div class="py-6 text-center space-y-1">
+              <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Precio Sugerido al Cliente</span>
+              <div class="flex items-center justify-center gap-1 text-zinc-100">
+                <span class="text-2xl font-light text-zinc-400">$</span>
+                <span id="total-sale-price" class="text-5xl font-black tracking-tight font-mono text-white">16.15</span>
+              </div>
+              <div class="flex items-center justify-center gap-2 text-xs text-zinc-400 mt-2">
+                <span>Margen aplicado: <strong id="summary-margin-percent" class="text-bambu-500 font-mono">+150%</strong></span>
+              </div>
+            </div>
+
+            <!-- Bottom Highlights: Cost vs Net Profit -->
+            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-zinc-800">
+              <div class="bg-zinc-950/70 rounded-2xl p-3.5 border border-zinc-800">
+                <span class="text-[11px] font-medium text-zinc-400 block">Costo Total Fábrica</span>
+                <span id="total-cost" class="text-xl font-bold text-zinc-200 font-mono">$6.46</span>
+                <span class="text-[10px] text-zinc-500 block mt-0.5">Suma de costos directos</span>
+              </div>
+              <div class="bg-emerald-950/30 rounded-2xl p-3.5 border border-emerald-500/30">
+                <span class="text-[11px] font-medium text-emerald-400 block flex items-center gap-1">
+                  <span>Ganancia Neta</span>
+                  <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+                </span>
+                <span id="net-profit" class="text-xl font-black text-emerald-400 font-mono">+$9.69</span>
+                <span class="text-[10px] text-emerald-500/80 block mt-0.5 font-mono">(60.0% s/ venta)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Itemized Cost Breakdown Cards (Shadcn UI style) -->
+          <div class="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+              <span>Desglose Detallado de Costos</span>
+              <span class="text-[10px] font-mono text-zinc-500">Cálculo al vuelo</span>
+            </h4>
+
+            <div class="space-y-3">
+              <!-- Item 1: Filamento -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 hover:border-zinc-700 transition">
+                <div class="flex items-center space-x-3">
+                  <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                    <i data-lucide="disc" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <div class="text-xs font-semibold text-zinc-200">Filamento Consumido</div>
+                    <div id="calc-desc-filament" class="text-[11px] text-zinc-400 font-mono">120g &times; $0.022/g</div>
+                  </div>
+                </div>
+                <div id="cost-filament" class="text-sm font-bold font-mono text-zinc-100">$2.64</div>
+              </div>
+
+              <!-- Item 2: Energía Eléctrica -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 hover:border-zinc-700 transition">
+                <div class="flex items-center space-x-3">
+                  <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <div class="text-xs font-semibold text-zinc-200">Consumo Eléctrico</div>
+                    <div id="calc-desc-energy" class="text-[11px] text-zinc-400 font-mono">0.28 kW &times; 3.0h &times; $0.15</div>
+                  </div>
+                </div>
+                <div id="cost-electricity" class="text-sm font-bold font-mono text-zinc-100">$0.13</div>
+              </div>
+
+              <!-- Item 3: Amortización Máquina -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 hover:border-zinc-700 transition">
+                <div class="flex items-center space-x-3">
+                  <div class="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <div class="text-xs font-semibold text-zinc-200">Desgaste / Amortización</div>
+                    <div id="calc-desc-amortization" class="text-[11px] text-zinc-400 font-mono">$0.119/h &times; 3.0h</div>
+                  </div>
+                </div>
+                <div id="cost-machine" class="text-sm font-bold font-mono text-zinc-100">$0.36</div>
+              </div>
+
+              <!-- Item 4: Mano de Obra -->
+              <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 hover:border-zinc-700 transition">
+                <div class="flex items-center space-x-3">
+                  <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <div class="text-xs font-semibold text-zinc-200">Mano de Obra & Post-proceso</div>
+                    <div id="calc-desc-operator" class="text-[11px] text-zinc-400 font-mono">0.25h &times; $8.00/h</div>
+                  </div>
+                </div>
+                <div id="cost-labor" class="text-sm font-bold font-mono text-zinc-100">$2.00</div>
+              </div>
+            </div>
+
+            <!-- Action buttons: Save Order / Print Quote -->
+            <div class="pt-2 flex gap-2">
+              <button onclick="confirmOrder()" class="flex-1 bg-bambu-500 hover:bg-bambu-600 text-zinc-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-bambu-500/20 active:scale-95">
+                <i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>
+                <span>Crear Pedido y Reservar Stock</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+    <!-- MODAL: NUEVO TRABAJO RÁPIDO -->
+    <div id="modal-nuevo-trabajo" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-bambu-500/20 text-bambu-500 rounded-lg">
+              <i data-lucide="layers" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Cargar Nuevo Trabajo a la Flota</h3>
+              <p class="text-xs text-zinc-400">Registrar pieza en cola de espera o ejecución</p>
+            </div>
+          </div>
+          <button onclick="cerrarModalNuevoTrabajo()" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="form-nuevo-trabajo" onsubmit="guardarNuevoTrabajo(event)" class="space-y-3.5 text-xs">
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Nombre de la Pieza / Archivo</label>
+            <input type="text" id="job-input-nombre" required placeholder="Ej: Soporte Monitor VESA_v3.3mf" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Cliente / Destino</label>
+              <input type="text" id="job-input-cliente" required placeholder="Ej: Tech Cuyo" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500" />
+            </div>
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Prioridad</label>
+              <select id="job-input-prioridad" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-bambu-500">
+                <option value="alta">Alta (Urgente)</option>
+                <option value="media" selected>Media (Normal)</option>
+                <option value="baja">Baja (Sin apuro)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Impresora Asignada</label>
+              <select id="job-input-impresora" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-bambu-500">
+                <option value="1">Bambu P1S (AMS 1)</option>
+                <option value="2">Bambu X1-Carbon (AMS 2)</option>
+                <option value="3">Bambu A1 Mini</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Bobina / Filamento</label>
+              <select id="job-input-bobina" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-bambu-500">
+                <!-- dynamically loaded -->
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Gramos (g)</label>
+              <input type="number" id="job-input-gramos" required min="1" value="95" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500" />
+            </div>
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Tiempo (min)</label>
+              <input type="number" id="job-input-tiempo" required min="1" value="140" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500" />
+            </div>
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Margen Venta %</label>
+              <input type="number" id="job-input-margen" required min="0" value="150" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500" />
+            </div>
+          </div>
+
+          <div class="pt-2 flex gap-3">
+            <button type="button" onclick="cerrarModalNuevoTrabajo()" class="flex-1 px-4 py-2.5 rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-300 transition">Cancelar</button>
+            <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-bambu-500 hover:bg-bambu-600 text-zinc-950 font-bold shadow-lg shadow-bambu-500/20 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+              <span>Agregar Trabajo</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: AGREGAR ACTIVO A INVERSIÓN INICIAL -->
+    <div id="modal-nuevo-activo" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-amber-500/20 text-amber-400 rounded-lg">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Registrar Activo o Inversión</h3>
+              <p class="text-xs text-zinc-400">Suma al capital invertido para el cálculo de ROI</p>
+            </div>
+          </div>
+          <button onclick="cerrarModalInversion()" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="form-nuevo-activo" onsubmit="guardarNuevoActivo(event)" class="space-y-3.5 text-xs">
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Categoría</label>
+            <select id="inv-input-categoria" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-bambu-500">
+              <option value="maquinaria">Impresora / Máquina 3D</option>
+              <option value="herramientas" selected>Herramienta, Accesorio o Repuesto</option>
+              <option value="insumos">Lote de Filamentos / Insumos Base</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Nombre o Descripción del Activo</label>
+            <input type="text" id="inv-input-nombre" required placeholder="Ej: AMS Bambu 4-colores adicional" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500" />
+          </div>
+
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Costo de Adquisición ($ USD)</label>
+            <input type="number" step="0.01" id="inv-input-costo" required min="1" placeholder="350.00" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500" />
+          </div>
+
+          <div class="pt-2 flex gap-3">
+            <button type="button" onclick="cerrarModalInversion()" class="flex-1 px-4 py-2.5 rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-300 transition">Cancelar</button>
+            <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-bambu-500 hover:bg-bambu-600 text-zinc-950 font-bold shadow-lg shadow-bambu-500/20 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i>
+              <span>Sumar a Inversión</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- JAVASCRIPT STATE & CALCULATION LOGIC -->
+  <script>
+    // ==========================================
+    // MOCK DATABASE & STATE (Based on ER Diagram)
+    // ==========================================
+    
+    // Configuracion de Costos
+    let configCostos = {
+      costo_kwh: 0.15,
+      costo_hora_operador: 8.00,
+      margen_ganancia_default: 150.0 // 150%
+    };
+
+    // Impresoras Bambu Lab
+    const impresoras = [
+      { id: 1, nombre: "Bambu Lab P1S (AMS 1)", consumo_kw: 0.28, costo_maquina: 950.0, horas_vida_util: 8000 },
+      { id: 2, nombre: "Bambu Lab X1-Carbon (AMS 2)", consumo_kw: 0.35, costo_maquina: 1500.0, horas_vida_util: 10000 },
+      { id: 3, nombre: "Bambu Lab A1 Mini (Bed Slinger)", consumo_kw: 0.15, costo_maquina: 400.0, horas_vida_util: 6000 }
+    ];
+
+    // Inventario de Bobinas (Filamentos)
+    let bobinas = [
+      { 
+        id: 1, 
+        marca: "eSun", 
+        material: "PLA+", 
+        color: "Negro Sólido", 
+        hex: "#18181b", 
+        peso_total_g: 1000, 
+        peso_actual_g: 850, 
+        costo_compra: 22.00 
+      },
+      { 
+        id: 2, 
+        marca: "Grilon3", 
+        material: "PETG", 
+        color: "Blanco Puro", 
+        hex: "#f4f4f5", 
+        peso_total_g: 1000, 
+        peso_actual_g: 140, 
+        costo_compra: 20.00 
+      },
+      { 
+        id: 3, 
+        marca: "Bambu Lab", 
+        material: "PLA Basic", 
+        color: "Verde Bambu", 
+        hex: "#00ae42", 
+        peso_total_g: 1000, 
+        peso_actual_g: 620, 
+        costo_compra: 26.00 
+      },
+      { 
+        id: 4, 
+        marca: "eSun", 
+        material: "Silk PLA", 
+        color: "Oro Metalizado", 
+        hex: "#eab308", 
+        peso_total_g: 1000, 
+        peso_actual_g: 380, 
+        costo_compra: 28.00 
+      }
+    ];
+
+    // Presets rápidos para simular .3mf
+    const presets = {
+      organizer: {
+        filename: "Bambu_Organizador_Modular_v2.3mf",
+        grams: 120,
+        printTime: 180,
+        operatorTime: 15,
+        plates: "Placa 1 &bull; 0.20mm Standard",
+        nozzle: "0.4mm &bull; 15% Grid Infill"
+      },
+      keychain: {
+        filename: "Lote_Llaveros_Empresa_x10.3mf",
+        grams: 35,
+        printTime: 45,
+        operatorTime: 10,
+        plates: "Placa 1 (Multicolor AMS)",
+        nozzle: "0.4mm &bull; 100% Infill"
+      },
+      helmet: {
+        filename: "Casco_Cosplay_Part1_Scale100.3mf",
+        grams: 480,
+        printTime: 840, // 14 horas
+        operatorTime: 30,
+        plates: "Placa Completa 256x256",
+        nozzle: "0.4mm &bull; Tree Supports"
+      }
+    };
+
+    // ==========================================
+    // INVERSIÓN INICIAL & ACTIVOS DE LA GRANJA
+    // ==========================================
+    let inversionInicial = {
+      maquinaria: [
+        { id: 1, nombre: "Bambu Lab P1S + AMS (Combo)", costo: 950.00, fecha: "2026-08-01" },
+        { id: 2, nombre: "Bambu Lab X1-Carbon + AMS (Combo)", costo: 1500.00, fecha: "2026-08-01" },
+        { id: 3, nombre: "Bambu Lab A1 Mini (Bed Slinger)", costo: 400.00, fecha: "2026-08-15" }
+      ],
+      herramientasEquipos: [
+        { id: 1, nombre: "Placas PEI Texturadas Bambu (x3)", costo: 90.00 },
+        { id: 2, nombre: "Kit Boquillas Acero Endurecido 0.4/0.6mm", costo: 45.00 },
+        { id: 3, nombre: "Secador de Filamento Sunlu S2", costo: 65.00 },
+        { id: 4, nombre: "Mesa de Trabajo Reforzada & Herramientas", costo: 80.00 }
+      ],
+      insumosIniciales: [
+        { id: 1, nombre: "Lote Inicial 4 Bobinas Filamento (4 kg)", costo: 96.00 }
+      ]
+    };
+
+    // ==========================================
+    // TRABAJOS DE LA GRANJA (EN EJECUCIÓN, ESPERA Y COMPLETADOS)
+    // ==========================================
+    const MOCK_TRABAJOS_INIT = [
+      // En Ejecución Activa
+      {
+        id: 101,
+        codigo: "TRB-101",
+        nombre: "Bambu_Organizador_Modular_v2.3mf",
+        cliente: "Estudio Delta Diseño",
+        impresoraId: 1, // Bambu P1S
+        bobinaId: 3, // Bambu Verde
+        pesoGramos: 120,
+        tiempoMinutos: 180,
+        tiempoTranscurridoMin: 126, // 70%
+        estado: "ejecucion",
+        costoFilamento: 3.12,
+        costoElectricidad: 0.13,
+        costoAmortizacion: 0.36,
+        costoManoObra: 2.00,
+        costoTotal: 5.61,
+        precioVenta: 14.03,
+        gananciaNeta: 8.42,
+        fecha: "2026-09-14",
+        prioridad: "alta"
+      },
+      {
+        id: 102,
+        codigo: "TRB-102",
+        nombre: "Carcasa_Dron_FPV_Racing.3mf",
+        cliente: "AeroModelismo Mendoza",
+        impresoraId: 2, // Bambu X1-C
+        bobinaId: 2, // Grilon3 PETG
+        pesoGramos: 85,
+        tiempoMinutos: 135,
+        tiempoTranscurridoMin: 54, // 40%
+        estado: "ejecucion",
+        costoFilamento: 1.70,
+        costoElectricidad: 0.12,
+        costoAmortizacion: 0.34,
+        costoManoObra: 1.60,
+        costoTotal: 3.76,
+        precioVenta: 10.50,
+        gananciaNeta: 6.74,
+        fecha: "2026-09-14",
+        prioridad: "media"
+      },
+      // En Lista de Espera (Cola de Producción)
+      {
+        id: 103,
+        codigo: "TRB-103",
+        nombre: "Lote_Llaveros_Corporativos_x50.3mf",
+        cliente: "Bodega Los Andes",
+        impresoraId: 1,
+        bobinaId: 4, // eSun Silk Oro
+        pesoGramos: 175,
+        tiempoMinutos: 220,
+        tiempoTranscurridoMin: 0,
+        estado: "espera",
+        costoFilamento: 4.90,
+        costoElectricidad: 0.15,
+        costoAmortizacion: 0.44,
+        costoManoObra: 2.80,
+        costoTotal: 8.29,
+        precioVenta: 24.50,
+        gananciaNeta: 16.21,
+        fecha: "2026-09-14",
+        prioridad: "alta"
+      },
+      {
+        id: 104,
+        codigo: "TRB-104",
+        nombre: "Soporte_Auriculares_Bambu_Desk.3mf",
+        cliente: "Particular - Juan M.",
+        impresoraId: 3, // A1 Mini
+        bobinaId: 1, // eSun PLA+ Negro
+        pesoGramos: 95,
+        tiempoMinutos: 110,
+        tiempoTranscurridoMin: 0,
+        estado: "espera",
+        costoFilamento: 2.09,
+        costoElectricidad: 0.04,
+        costoAmortizacion: 0.12,
+        costoManoObra: 1.50,
+        costoTotal: 3.75,
+        precioVenta: 11.20,
+        gananciaNeta: 7.45,
+        fecha: "2026-09-14",
+        prioridad: "baja"
+      },
+      // Trabajos Completados esta semana (08 al 13 de Septiembre)
+      {
+        id: 95,
+        codigo: "TRB-095",
+        nombre: "Maqueta_Arquitectura_Fachada.3mf",
+        cliente: "Arq. Gomez & Asoc.",
+        impresoraId: 2,
+        bobinaId: 2,
+        pesoGramos: 310,
+        tiempoMinutos: 490,
+        tiempoTranscurridoMin: 490,
+        estado: "completado",
+        costoFilamento: 6.20,
+        costoElectricidad: 0.43,
+        costoAmortizacion: 1.23,
+        costoManoObra: 5.00,
+        costoTotal: 12.86,
+        precioVenta: 38.50,
+        gananciaNeta: 25.64,
+        fecha: "2026-09-13",
+        prioridad: "alta"
+      },
+      {
+        id: 94,
+        codigo: "TRB-094",
+        nombre: "Caja_Electronica_Estanca_IP65.3mf",
+        cliente: "SensorTech Cuyo",
+        impresoraId: 1,
+        bobinaId: 2,
+        pesoGramos: 140,
+        tiempoMinutos: 190,
+        tiempoTranscurridoMin: 190,
+        estado: "completado",
+        costoFilamento: 2.80,
+        costoElectricidad: 0.13,
+        costoAmortizacion: 0.38,
+        costoManoObra: 2.20,
+        costoTotal: 5.51,
+        precioVenta: 16.00,
+        gananciaNeta: 10.49,
+        fecha: "2026-09-12",
+        prioridad: "media"
+      },
+      {
+        id: 93,
+        codigo: "TRB-093",
+        nombre: "Lampara_Litofania_Personalizada.3mf",
+        cliente: "Regalos Mza",
+        impresoraId: 3,
+        bobinaId: 1,
+        pesoGramos: 160,
+        tiempoMinutos: 280,
+        tiempoTranscurridoMin: 280,
+        estado: "completado",
+        costoFilamento: 3.52,
+        costoElectricidad: 0.11,
+        costoAmortizacion: 0.31,
+        costoManoObra: 3.00,
+        costoTotal: 6.94,
+        precioVenta: 22.00,
+        gananciaNeta: 15.06,
+        fecha: "2026-09-11",
+        prioridad: "media"
+      },
+      {
+        id: 92,
+        codigo: "TRB-092",
+        nombre: "Engranaje_Helicoidal_Torno.3mf",
+        cliente: "Mecánica Rossi",
+        impresoraId: 2,
+        bobinaId: 2,
+        pesoGramos: 75,
+        tiempoMinutos: 105,
+        tiempoTranscurridoMin: 105,
+        estado: "completado",
+        costoFilamento: 1.50,
+        costoElectricidad: 0.09,
+        costoAmortizacion: 0.26,
+        costoManoObra: 1.50,
+        costoTotal: 3.35,
+        precioVenta: 12.00,
+        gananciaNeta: 8.65,
+        fecha: "2026-09-10",
+        prioridad: "alta"
+      },
+      // Más trabajos completados a inicios de mes para el filtro mensual
+      {
+        id: 91,
+        codigo: "TRB-091",
+        nombre: "Maceta_Geometrica_Facetada_x4.3mf",
+        cliente: "Vivero El Manantial",
+        impresoraId: 1,
+        bobinaId: 3,
+        pesoGramos: 380,
+        tiempoMinutos: 520,
+        tiempoTranscurridoMin: 520,
+        estado: "completado",
+        costoFilamento: 9.88,
+        costoElectricidad: 0.36,
+        costoAmortizacion: 1.03,
+        costoManoObra: 4.50,
+        costoTotal: 15.77,
+        precioVenta: 44.00,
+        gananciaNeta: 28.23,
+        fecha: "2026-09-06",
+        prioridad: "baja"
+      },
+      {
+        id: 90,
+        codigo: "TRB-090",
+        nombre: "Prototipo_Ergonomico_Scanner.3mf",
+        cliente: "Logística Andina",
+        impresoraId: 2,
+        bobinaId: 1,
+        pesoGramos: 110,
+        tiempoMinutos: 150,
+        tiempoTranscurridoMin: 150,
+        estado: "completado",
+        costoFilamento: 2.42,
+        costoElectricidad: 0.13,
+        costoAmortizacion: 0.38,
+        costoManoObra: 2.00,
+        costoTotal: 4.93,
+        precioVenta: 15.50,
+        gananciaNeta: 10.57,
+        fecha: "2026-09-04",
+        prioridad: "media"
+      },
+      {
+        id: 85,
+        codigo: "TRB-085",
+        nombre: "Trofeos_Torneo_Padel_x3.3mf",
+        cliente: "Club Los Cerros",
+        impresoraId: 1,
+        bobinaId: 4,
+        pesoGramos: 240,
+        tiempoMinutos: 330,
+        tiempoTranscurridoMin: 330,
+        estado: "completado",
+        costoFilamento: 6.72,
+        costoElectricidad: 0.23,
+        costoAmortizacion: 0.65,
+        costoManoObra: 4.00,
+        costoTotal: 11.60,
+        precioVenta: 35.00,
+        gananciaNeta: 23.40,
+        fecha: "2026-09-02",
+        prioridad: "alta"
+      },
+      {
+        id: 80,
+        codigo: "TRB-080",
+        nombre: "Soporte_GoPro_Casco_Enduro.3mf",
+        cliente: "Moto Mendoza",
+        impresoraId: 3,
+        bobinaId: 2,
+        pesoGramos: 55,
+        tiempoMinutos: 75,
+        tiempoTranscurridoMin: 75,
+        estado: "completado",
+        costoFilamento: 1.10,
+        costoElectricidad: 0.03,
+        costoAmortizacion: 0.08,
+        costoManoObra: 1.00,
+        costoTotal: 2.21,
+        precioVenta: 8.50,
+        gananciaNeta: 6.29,
+        fecha: "2026-08-28",
+        prioridad: "baja"
+      }
+    ];
+
+    let trabajos = JSON.parse(JSON.stringify(MOCK_TRABAJOS_INIT));
+    let periodoFiltro = "semana"; // 'general' | 'semana' | 'mes'
+    let chartMode = "daily"; // 'daily' | 'cumulative'
+    let financeChartInstance = null;
+
+    // ==========================================
+    // INITIALIZATION & TAB SWITCHING
+    // ==========================================
+    document.addEventListener("DOMContentLoaded", () => {
+      initPrintersDropdown();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      renderInventory();
+      renderJobs();
+      renderFinance();
+      initDailyFinanceChart();
+      calculateAll();
+      lucide.createIcons();
+    });
+
+    function switchTab(tabId) {
+      const tabs = ["jobs", "finance", "calculator", "inventory"];
+      
+      tabs.forEach(t => {
+        const sec = document.getElementById(`tab-content-${t}`);
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (!sec || !btn) return;
+
+        if (t === tabId) {
+          sec.classList.remove("hidden");
+          btn.className = "flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 bg-zinc-800 text-white shadow-sm border border-zinc-700/60";
+        } else {
+          sec.classList.add("hidden");
+          btn.className = "flex items-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50";
+        }
+      });
+
+      if (tabId === "jobs") {
+        renderJobs();
+      } else if (tabId === "finance") {
+        renderFinance();
+        setTimeout(() => {
+          updateFinanceChart();
+        }, 50);
+      } else if (tabId === "inventory") {
+        renderInventory();
+      }
+
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // TAB 1: INVENTORY RENDERING
+    // ==========================================
+    function renderInventory() {
+      const grid = document.getElementById("spools-grid");
+      grid.innerHTML = "";
+
+      let totalWeight = 0;
+      let totalStockCapital = 0;
+      let lowStockCount = 0;
+
+      bobinas.forEach(b => {
+        const percent = Math.round((b.peso_actual_g / b.peso_total_g) * 100);
+        const costPerGram = b.costo_compra / b.peso_total_g;
+        const currentStockValue = b.peso_actual_g * costPerGram;
+
+        totalWeight += b.peso_actual_g;
+        totalStockCapital += currentStockValue;
+
+        // Visual alerts based on percentage
+        let progressColor = "bg-emerald-500";
+        let badgeBg = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        let statusText = "Stock Óptimo";
+
+        if (percent < 20) {
+          progressColor = "bg-rose-500";
+          badgeBg = "bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse";
+          statusText = "¡Crítico! Reponer";
+          lowStockCount++;
+        } else if (percent < 50) {
+          progressColor = "bg-amber-500";
+          badgeBg = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+          statusText = "Stock Medio";
+        }
+
+        const card = document.createElement("div");
+        card.className = "bg-zinc-900/80 border border-zinc-800/80 hover:border-zinc-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-lg hover:shadow-xl group";
+
+        card.innerHTML = `
+          <div>
+            <!-- Header: Badges & Swatch -->
+            <div class="flex items-start justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-4 h-4 rounded-full border border-white/20 shadow-inner flex-shrink-0" style="background-color: ${b.hex}"></span>
+                <span class="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">${b.marca}</span>
+              </div>
+              <span class="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full border ${badgeBg}">
+                ${statusText}
+              </span>
+            </div>
+
+            <!-- Material Title -->
+            <div class="mt-3">
+              <h3 class="text-base font-bold text-white group-hover:text-bambu-500 transition">${b.material}</h3>
+              <p class="text-xs text-zinc-400 flex items-center gap-1">
+                <span>Color:</span>
+                <span class="text-zinc-200 font-medium">${b.color}</span>
+              </p>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="mt-5 space-y-1.5">
+              <div class="flex justify-between text-xs font-mono">
+                <span class="text-zinc-400">Stock restante:</span>
+                <span class="font-bold text-white">${b.peso_actual_g}g <span class="text-zinc-500 font-normal">/ 1000g</span></span>
+              </div>
+              <div class="w-full h-2.5 bg-zinc-950 rounded-full overflow-hidden p-0.5 border border-zinc-800">
+                <div class="h-full rounded-full transition-all duration-500 ${progressColor}" style="width: ${percent}%"></div>
+              </div>
+              <div class="flex justify-between text-[11px] text-zinc-500 font-mono">
+                <span>${percent}% disponible</span>
+                <span>Restan aprox ${(b.peso_actual_g / 40).toFixed(0)} piezas chicas</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Costing & Actions -->
+          <div class="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs">
+            <div>
+              <span class="text-[10px] text-zinc-500 block uppercase font-mono">Costo / Gramo</span>
+              <span class="font-mono font-bold text-emerald-400">$${costPerGram.toFixed(3)}</span>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-zinc-500 block uppercase font-mono">Valor Actual</span>
+              <span class="font-mono text-zinc-300">$${currentStockValue.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      // Update Header Stats
+      document.getElementById("stat-total-spools").textContent = bobinas.length;
+      document.getElementById("badge-total-spools").textContent = bobinas.length;
+      document.getElementById("stat-total-weight").textContent = totalWeight.toLocaleString();
+      document.getElementById("stat-total-capital").textContent = `$${totalStockCapital.toFixed(2)}`;
+      document.getElementById("stat-low-stock-count").textContent = lowStockCount;
+    }
+
+    // ==========================================
+    // TAB 2: DROPDOWNS & SLICER SIMULATOR
+    // ==========================================
+    function initPrintersDropdown() {
+      const select = document.getElementById("select-printer");
+      select.innerHTML = "";
+      impresoras.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.nombre} (${p.consumo_kw} kW)`;
+        select.appendChild(opt);
+      });
+    }
+
+    function initSpoolsDropdown() {
+      const select = document.getElementById("select-spool");
+      select.innerHTML = "";
+      bobinas.forEach(b => {
+        const opt = document.createElement("option");
+        opt.value = b.id;
+        const costPerGram = (b.costo_compra / b.peso_total_g).toFixed(3);
+        opt.textContent = `${b.marca} ${b.material} - ${b.color} ($${costPerGram}/g) [${b.peso_actual_g}g disp]`;
+        select.appendChild(opt);
+      });
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById("dropzone").classList.add("drop-active");
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      document.getElementById("dropzone").classList.remove("drop-active");
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById("dropzone").classList.remove("drop-active");
+      const file = e.dataTransfer.files?.[0];
+      if (file) {
+        processReal3mfFile(file);
+      }
+    }
+
+    function handleRealFile(e) {
+      const file = e.target.files?.[0];
+      if (file) {
+        processReal3mfFile(file);
+      }
+    }
+
+    async function processReal3mfFile(file) {
+      const dropzone = document.getElementById("dropzone");
+      const icon = document.getElementById("dropzone-icon");
+      const filenameEl = document.getElementById("dropzone-filename");
+      const badge = document.getElementById("file-status-badge");
+
+      if (!file.name.toLowerCase().endsWith(".3mf")) {
+        alert("Por favor selecciona un archivo con extensión .3mf");
+        return;
+      }
+
+      dropzone.classList.add("drop-active");
+      icon.innerHTML = `<i data-lucide="loader-2" class="w-7 h-7 animate-spin text-bambu-500"></i>`;
+      lucide.createIcons();
+      filenameEl.textContent = `Descomprimiendo y leyendo ${file.name}...`;
+
+      try {
+        // 1. Cargar ZIP con JSZip
+        const zip = await JSZip.loadAsync(file);
+
+        // 2. Buscar Metadata/slice_info.config
+        let configFile = zip.file("Metadata/slice_info.config");
+        if (!configFile) {
+          const match = Object.keys(zip.files).find(k => k.toLowerCase().endsWith("slice_info.config"));
+          if (match) configFile = zip.file(match);
+        }
+
+        if (!configFile) {
+          throw new Error("El archivo .3mf no contiene datos de laminado ('Metadata/slice_info.config'). Recuerda hacer 'Slice plate' en Bambu Studio antes de guardar.");
+        }
+
+        // 3. Parsear XML de slice_info.config con soporte Multi-Placa (<plate>)
+        let totalPredictionSeconds = 0;
+        let totalWeightGrams = 0;
+        const platesList = [];
+
+        if (configFile) {
+          const xmlText = await configFile.async("text");
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+          const plateElements = xmlDoc.querySelectorAll("plate");
+
+          plateElements.forEach((plateEl) => {
+            let pIdx = 1;
+            let pSeconds = 0;
+            let pWeight = 0;
+
+            plateEl.querySelectorAll("metadata").forEach((m) => {
+              const k = m.getAttribute("key");
+              const v = m.getAttribute("value");
+              if (k === "index") pIdx = parseInt(v, 10) || 1;
+              else if (k === "prediction") pSeconds = parseFloat(v) || 0;
+              else if (k === "weight") pWeight = parseFloat(v) || 0;
+            });
+
+            // Sumar filamento de la placa
+            let pFilamentSum = 0;
+            plateEl.querySelectorAll("filament").forEach((f) => {
+              pFilamentSum += parseFloat(f.getAttribute("used_g") || "0");
+            });
+
+            if (pWeight === 0 && pFilamentSum > 0) pWeight = pFilamentSum;
+
+            // Objetos en la placa
+            const objs = [];
+            plateEl.querySelectorAll("object").forEach((o) => {
+              const name = o.getAttribute("name");
+              if (name) objs.push(name);
+            });
+
+            totalPredictionSeconds += pSeconds;
+            totalWeightGrams += pWeight;
+
+            platesList.push({
+              index: pIdx,
+              name: objs.length > 0 ? objs.join(", ") : `Placa ${pIdx}`,
+              seconds: pSeconds,
+              minutes: Math.ceil(pSeconds / 60),
+              weight: Math.round(pWeight * 100) / 100
+            });
+          });
+        }
+
+        // 4. Si no encontramos plates en slice_info.config, buscar en G-code
+        if (platesList.length === 0 || (totalPredictionSeconds === 0 && totalWeightGrams === 0)) {
+          const gcodeKey = Object.keys(zip.files).find(k => k.endsWith(".gcode") || k.includes("plate_"));
+          if (gcodeKey) {
+            const gcodeText = await zip.file(gcodeKey).async("text");
+            const weightMatch = gcodeText.match(/total filament used \[g\]\s*=\s*([\d.]+)/i) ||
+                                gcodeText.match(/filament used \[g\]\s*=\s*([\d.]+)/i);
+            if (weightMatch && weightMatch[1]) totalWeightGrams = parseFloat(weightMatch[1]);
+
+            const timeMatch = gcodeText.match(/total estimated time:\s*(\d+)s/i) ||
+                              gcodeText.match(/prediction[^\d]+(\d+)/i);
+            if (timeMatch && timeMatch[1]) totalPredictionSeconds = parseInt(timeMatch[1], 10);
+
+            const plateMatch = file.name.match(/plate_(\d+)/i);
+            const pIndex = plateMatch ? parseInt(plateMatch[1], 10) : 1;
+            platesList.push({
+              index: pIndex,
+              name: `Placa ${pIndex}`,
+              seconds: totalPredictionSeconds,
+              minutes: Math.ceil(totalPredictionSeconds / 60),
+              weight: Math.round(totalWeightGrams * 100) / 100
+            });
+          }
+        }
+
+        // 5. Validar si había datos reales
+        if (totalPredictionSeconds === 0 && totalWeightGrams === 0) {
+          throw new Error(
+            `El archivo "${file.name}" no contiene datos de laminado guardados.\n\n` +
+            `Si tienes el corte en pantalla en Bambu Studio:\n` +
+            `1. Ve a: Archivo > Guardar proyecto (Ctrl + S).\n` +
+            `2. Vuelve a subir ese archivo.`
+          );
+        }
+
+        const printTimeMinutes = Math.ceil(totalPredictionSeconds / 60);
+        totalWeightGrams = Math.round(totalWeightGrams * 100) / 100;
+
+        // Detectar si es una sola placa de un proyecto de varias
+        const isSinglePlate = platesList.length === 1 && (file.name.toLowerCase().includes("plate_") || platesList[0].index > 1);
+        const singlePlateIndex = isSinglePlate ? platesList[0].index : 1;
+
+        // Actualizar UI
+        document.getElementById("input-grams").value = totalWeightGrams;
+        document.getElementById("input-print-time").value = printTimeMinutes;
+        document.getElementById("dropzone-filename").textContent = file.name;
+        document.getElementById("meta-filename").textContent = file.name;
+        
+        if (platesList.length > 1) {
+          document.getElementById("meta-plates").innerHTML = `✓ ${platesList.length} Placas Completas`;
+        } else if (isSinglePlate) {
+          document.getElementById("meta-plates").innerHTML = `⚠️ Solo Placa ${singlePlateIndex}`;
+        } else {
+          document.getElementById("meta-plates").innerHTML = `Placa 1 de 1`;
+        }
+
+        const hours = Math.floor(printTimeMinutes / 60);
+        const mins = printTimeMinutes % 60;
+        const timeFormatted = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        document.getElementById("meta-nozzle").innerHTML = `${timeFormatted} (${totalWeightGrams}g)`;
+
+        badge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-bambu-500/10 text-bambu-500 border border-bambu-500/30";
+        badge.textContent = platesList.length > 1 ? `✓ ${platesList.length} Placas` : `✓ Placa ${singlePlateIndex}`;
+
+        calculateAll();
+
+        // Alerta explicativa al usuario
+        if (isSinglePlate) {
+          const objName = platesList[0].name || `Placa ${singlePlateIndex}`;
+          alert(
+            `ℹ️ Detectada Placa ${singlePlateIndex} Individual:\n\n` +
+            `• Archivo: ${file.name}\n` +
+            `• Pieza: ${objName}\n` +
+            `• Filamento: ${totalWeightGrams} g\n` +
+            `• Tiempo estimado: ${timeFormatted} (${printTimeMinutes} min)\n\n` +
+            `💡 NOTA IMPORTANTE:\n` +
+            `Has subido únicamente la Placa ${singlePlateIndex} (la lengua de Pikachu).\n` +
+            `Si quieres cotizar el Pikachu completo (las 6 placas: 213g / 6h 59m), en Bambu Studio ve a:\n` +
+            `Archivo > Guardar proyecto (Ctrl + S) y sube el archivo 'pikachu_p1s.3mf'.`
+          );
+        } else if (platesList.length > 1) {
+          alert(
+            `✅ ¡Proyecto Multi-Placa Extraído Exitosamente!\n\n` +
+            `• Archivo: ${file.name}\n` +
+            `• Placas procesadas: ${platesList.length} placas\n` +
+            `• Filamento TOTAL acumulado: ${totalWeightGrams} g\n` +
+            `• Tiempo TOTAL de impresión: ${timeFormatted} (${printTimeMinutes} min)`
+          );
+        } else {
+          alert(
+            `✅ ¡Datos reales de Bambu Studio extraídos!\n\n` +
+            `• Archivo: ${file.name}\n` +
+            `• Filamento: ${totalWeightGrams} g\n` +
+            `• Tiempo: ${timeFormatted} (${printTimeMinutes} min)`
+          );
+        }
+      } catch (err) {
+        console.error("Error al procesar .3mf:", err);
+        alert(`⚠️ ${err.message}`);
+      } finally {
+        dropzone.classList.remove("drop-active");
+        icon.innerHTML = `<i data-lucide="check" class="w-7 h-7 text-emerald-400"></i>`;
+        lucide.createIcons();
+      }
+    }
+
+    function simulateFileUpload() {
+      const dropzone = document.getElementById("dropzone");
+      const icon = document.getElementById("dropzone-icon");
+      const filenameEl = document.getElementById("dropzone-filename");
+      const badge = document.getElementById("file-status-badge");
+
+      // Animation effect
+      dropzone.classList.add("drop-active");
+      icon.innerHTML = `<i data-lucide="loader-2" class="w-7 h-7 animate-spin text-bambu-500"></i>`;
+      lucide.createIcons();
+      filenameEl.textContent = "Procesando capas y metadatos de Bambu Studio...";
+
+      setTimeout(() => {
+        dropzone.classList.remove("drop-active");
+        icon.innerHTML = `<i data-lucide="check" class="w-7 h-7 text-emerald-400"></i>`;
+        badge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-bambu-500/10 text-bambu-500 border border-bambu-500/30";
+        badge.textContent = "✓ Slicer .3mf Cargado";
+
+        // Apply 120g and 180min mock requirement as asked
+        applyPreset('organizer');
+        lucide.createIcons();
+      }, 500);
+    }
+
+    function applyPreset(presetKey) {
+      const data = presets[presetKey];
+      if (!data) return;
+
+      document.getElementById("input-grams").value = data.grams;
+      document.getElementById("input-print-time").value = data.printTime;
+      document.getElementById("input-operator-time").value = data.operatorTime;
+      document.getElementById("dropzone-filename").textContent = data.filename;
+      document.getElementById("meta-filename").textContent = data.filename;
+      document.getElementById("meta-plates").innerHTML = data.plates;
+      document.getElementById("meta-nozzle").innerHTML = data.nozzle;
+
+      const badge = document.getElementById("file-status-badge");
+      badge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-bambu-500/10 text-bambu-500 border border-bambu-500/30";
+      badge.textContent = "✓ Slicer .3mf Sincronizado";
+
+      calculateAll();
+    }
+
+    // ==========================================
+    // COST & PRICING ENGINE (REAL-TIME)
+    // ==========================================
+    function calculateAll() {
+      // 1. Gather Inputs
+      const printerId = parseInt(document.getElementById("select-printer").value) || 1;
+      const spoolId = parseInt(document.getElementById("select-spool").value) || 1;
+      const grams = parseFloat(document.getElementById("input-grams").value) || 0;
+      const printTimeMin = parseFloat(document.getElementById("input-print-time").value) || 0;
+      const operatorTimeMin = parseFloat(document.getElementById("input-operator-time").value) || 0;
+      const marginPercent = parseFloat(document.getElementById("slider-margin").value) || 150;
+      const kwhRate = parseFloat(document.getElementById("input-kwh-rate").value) || 0.15;
+      const operatorRate = parseFloat(document.getElementById("input-operator-rate").value) || 8.00;
+
+      // Find objects
+      const printer = impresoras.find(p => p.id === printerId) || impresoras[0];
+      const spool = bobinas.find(b => b.id === spoolId) || bobinas[0];
+
+      // Update badges
+      document.getElementById("printer-specs").textContent = `${printer.consumo_kw} kW • $${printer.costo_maquina}`;
+      const spoolCostPerGram = spool.costo_compra / spool.peso_total_g;
+      document.getElementById("spool-cost-gram").textContent = `$${spoolCostPerGram.toFixed(3)} / g`;
+      document.getElementById("label-margin").textContent = `+${marginPercent}%`;
+      document.getElementById("summary-margin-percent").textContent = `+${marginPercent}%`;
+
+      // 2. Calculations
+      const printHours = printTimeMin / 60.0;
+      const operatorHours = operatorTimeMin / 60.0;
+
+      // A) Costo de Filamento: gramos * costo por gramo
+      const costFilament = grams * spoolCostPerGram;
+
+      // B) Costo Eléctrico: consumo_kw * horas * costo_kwh
+      const costElectricity = printer.consumo_kw * printHours * kwhRate;
+
+      // C) Desgaste de Máquina: (costo_maquina / horas_vida_util) * horas
+      const hourlyAmortization = printer.costo_maquina / printer.horas_vida_util;
+      const costMachine = hourlyAmortization * printHours;
+
+      // D) Mano de Obra: horas_operador * costo_hora_operador
+      const costLabor = operatorHours * operatorRate;
+
+      // COSTO TOTAL DE PRODUCCIÓN
+      const totalCost = costFilament + costElectricity + costMachine + costLabor;
+
+      // PRECIO SUGERIDO DE VENTA (aplicando margen de ganancia)
+      const suggestedPrice = totalCost * (1 + (marginPercent / 100.0));
+
+      // GANANCIA NETA CALCULADA: Precio - Costo
+      const netProfit = suggestedPrice - totalCost;
+      const profitMarginPercentOnSale = suggestedPrice > 0 ? ((netProfit / suggestedPrice) * 100) : 0;
+
+      // 3. Render Outputs
+      document.getElementById("cost-filament").textContent = `$${costFilament.toFixed(2)}`;
+      document.getElementById("calc-desc-filament").textContent = `${grams}g × $${spoolCostPerGram.toFixed(3)}/g`;
+
+      document.getElementById("cost-electricity").textContent = `$${costElectricity.toFixed(2)}`;
+      document.getElementById("calc-desc-energy").textContent = `${printer.consumo_kw}kW × ${printHours.toFixed(2)}h × $${kwhRate}/kWh`;
+
+      document.getElementById("cost-machine").textContent = `$${costMachine.toFixed(2)}`;
+      document.getElementById("calc-desc-amortization").textContent = `$${hourlyAmortization.toFixed(3)}/h amortiz × ${printHours.toFixed(2)}h`;
+
+      document.getElementById("cost-labor").textContent = `$${costLabor.toFixed(2)}`;
+      document.getElementById("calc-desc-operator").textContent = `${operatorHours.toFixed(2)}h × $${operatorRate.toFixed(2)}/h`;
+
+      // Totals
+      document.getElementById("total-cost").textContent = `$${totalCost.toFixed(2)}`;
+      document.getElementById("total-sale-price").textContent = `${suggestedPrice.toFixed(2)}`;
+      document.getElementById("net-profit").textContent = `+$${netProfit.toFixed(2)}`;
+      
+      const profitLabelEl = document.querySelector("#net-profit + span");
+      if (profitLabelEl) {
+        profitLabelEl.textContent = `(${profitMarginPercentOnSale.toFixed(1)}% s/ venta)`;
+      }
+
+      // Stock check badge
+      const stockBadge = document.getElementById("stock-check-badge");
+      if (spool.peso_actual_g >= grams) {
+        const remainingAfter = spool.peso_actual_g - grams;
+        stockBadge.className = "px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        stockBadge.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Stock OK (quedarán ${remainingAfter}g)`;
+      } else {
+        const missing = grams - spool.peso_actual_g;
+        stockBadge.className = "px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse";
+        stockBadge.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> ¡Faltan ${missing}g para esta pieza!`;
+      }
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // FILTER & PERIOD SELECTION LOGIC
+    // ==========================================
+    function setPeriodoFiltro(periodo) {
+      periodoFiltro = periodo;
+
+      // Update Jobs buttons
+      ["general", "semana", "mes"].forEach(p => {
+        const btnJ = document.getElementById(`filter-btn-${p}`);
+        const btnF = document.getElementById(`fin-filter-btn-${p}`);
+        const activeClass = "px-3 py-1.5 rounded-lg bg-zinc-800 text-emerald-400 font-semibold shadow-sm border border-zinc-700 transition";
+        const inactiveClass = "px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition font-medium";
+
+        if (btnJ) btnJ.className = p === periodo ? activeClass : inactiveClass;
+        if (btnF) btnF.className = p === periodo ? activeClass : inactiveClass;
+      });
+
+      const badgeText = periodo === "general" ? "Todo el Historial" : periodo === "semana" ? "Esta Semana (08-14 Sep)" : "Este Mes (Septiembre 2026)";
+      const jobsBadge = document.getElementById("jobs-filter-badge");
+      const finBadge = document.getElementById("finance-filter-badge");
+      if (jobsBadge) jobsBadge.textContent = badgeText;
+      if (finBadge) finBadge.textContent = badgeText;
+
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+    }
+
+    function filtrarTrabajosPorPeriodo(lista) {
+      if (periodoFiltro === "general") return lista;
+      if (periodoFiltro === "semana") {
+        return lista.filter(t => t.fecha >= "2026-09-08" && t.fecha <= "2026-09-14");
+      }
+      if (periodoFiltro === "mes") {
+        return lista.filter(t => t.fecha.startsWith("2026-09"));
+      }
+      return lista;
+    }
+
+    function setChartMode(mode) {
+      chartMode = mode;
+      const btnDaily = document.getElementById("btn-chart-daily");
+      const btnCum = document.getElementById("btn-chart-cumulative");
+      const activeCls = "px-3 py-1 rounded-lg bg-zinc-800 text-emerald-400 font-semibold shadow-sm transition";
+      const inactiveCls = "px-3 py-1 rounded-lg text-zinc-400 hover:text-white transition";
+
+      if (btnDaily && btnCum) {
+        btnDaily.className = mode === "daily" ? activeCls : inactiveCls;
+        btnCum.className = mode === "cumulative" ? activeCls : inactiveCls;
+      }
+      updateFinanceChart();
+    }
+
+    // ==========================================
+    // RENDER: TRABAJOS & FLOTA (EN EJECUCIÓN / ESPERA)
+    // ==========================================
+    function renderJobs() {
+      const filtered = filtrarTrabajosPorPeriodo(trabajos);
+      const enEjecucion = trabajos.filter(t => t.estado === "ejecucion");
+      const enEspera = trabajos.filter(t => t.estado === "espera");
+      const completados = filtered.filter(t => t.estado === "completado");
+
+      // Badges superiores
+      const badgeActive = document.getElementById("badge-active-jobs");
+      if (badgeActive) badgeActive.textContent = `${enEjecucion.length} en curso`;
+
+      const badgeWaiting = document.getElementById("count-waiting-badge");
+      if (badgeWaiting) badgeWaiting.textContent = `${enEspera.length} pendientes`;
+
+      // Resumen del período
+      const summaryEl = document.getElementById("jobs-filter-summary");
+      if (summaryEl) {
+        const totalGramsPeriodo = filtered.reduce((acc, t) => acc + t.pesoGramos, 0);
+        const totalRevPeriodo = filtered.reduce((acc, t) => acc + t.precioVenta, 0);
+        const totalCostPeriodo = filtered.reduce((acc, t) => acc + t.costoTotal, 0);
+        const totalNetPeriodo = totalRevPeriodo - totalCostPeriodo;
+
+        summaryEl.innerHTML = `
+          Visualizando producciones de <strong>${periodoFiltro === "semana" ? "esta semana (08/09 - 14/09)" : periodoFiltro === "mes" ? "este mes (Septiembre 2026)" : "histórico general"}</strong>: 
+          ${filtered.length} trabajos (${enEjecucion.length} en ejecución, ${enEspera.length} en espera, ${completados.length} terminados) &bull; 
+          ${totalGramsPeriodo.toLocaleString()}g filamento &bull; 
+          Facturación: <strong class="text-white font-mono">$${totalRevPeriodo.toFixed(2)}</strong> &bull; 
+          Ganancia Neta: <strong class="text-emerald-400 font-mono">+$${totalNetPeriodo.toFixed(2)}</strong>
+        `;
+      }
+
+      // KPIs de Jobs
+      document.getElementById("stat-jobs-running").textContent = enEjecucion.length;
+      document.getElementById("stat-jobs-waiting").textContent = enEspera.length;
+
+      const waitMinutes = enEspera.reduce((acc, t) => acc + t.tiempoMinutos, 0);
+      const waitHours = Math.floor(waitMinutes / 60);
+      const waitRem = waitMinutes % 60;
+      document.getElementById("stat-jobs-waiting-time").textContent = `${waitHours}h ${waitRem}m estimadas de impresión`;
+
+      document.getElementById("stat-jobs-completed").textContent = completados.length;
+      const completedGrams = completados.reduce((acc, t) => acc + t.pesoGramos, 0);
+      document.getElementById("stat-jobs-completed-grams").textContent = `${completedGrams.toLocaleString()}g de filamento terminado`;
+
+      const periodRevenue = completados.reduce((acc, t) => acc + t.precioVenta, 0);
+      const periodCost = completados.reduce((acc, t) => acc + t.costoTotal, 0);
+      const periodNet = periodRevenue - periodCost;
+
+      document.getElementById("stat-jobs-revenue").textContent = `$${periodRevenue.toFixed(2)}`;
+      document.getElementById("stat-jobs-net").textContent = `+$${periodNet.toFixed(2)} neto`;
+
+      // 1. Render Impresoras en Ejecución
+      const printersGrid = document.getElementById("printers-live-grid");
+      printersGrid.innerHTML = "";
+
+      impresoras.forEach(printer => {
+        const activeJob = trabajos.find(t => t.impresoraId === printer.id && t.estado === "ejecucion");
+        const card = document.createElement("div");
+
+        if (activeJob) {
+          const spool = bobinas.find(b => b.id === activeJob.bobinaId) || bobinas[0];
+          const percent = Math.min(100, Math.round((activeJob.tiempoTranscurridoMin / activeJob.tiempoMinutos) * 100));
+          const remainingMin = Math.max(0, activeJob.tiempoMinutos - activeJob.tiempoTranscurridoMin);
+          const remHours = Math.floor(remainingMin / 60);
+          const remMins = remainingMin % 60;
+          const remStr = remHours > 0 ? `${remHours}h ${remMins}m` : `${remMins}m`;
+
+          card.className = "bg-zinc-900/90 border border-emerald-500/40 rounded-2xl p-5 shadow-xl flex flex-col justify-between relative overflow-hidden group";
+          card.innerHTML = `
+            <div class="space-y-4">
+              <!-- Header Impresora -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold flex items-center gap-1.5">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    IMPRIMIENDO (${percent}%)
+                  </span>
+                  <h4 class="text-sm font-bold text-white mt-0.5">${printer.nombre}</h4>
+                </div>
+                <span class="px-2 py-0.5 text-[10px] font-mono bg-zinc-800 text-zinc-300 rounded-md border border-zinc-700">
+                  ${printer.consumo_kw} kW
+                </span>
+              </div>
+
+              <!-- Pieza & Cliente -->
+              <div class="bg-zinc-950/70 rounded-xl p-3 border border-zinc-800 space-y-1">
+                <div class="flex items-center justify-between text-xs font-bold text-white truncate">
+                  <span class="truncate" title="${activeJob.nombre}">${activeJob.nombre}</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>Cliente: <strong class="text-zinc-200 font-medium">${activeJob.cliente}</strong></span>
+                  <span class="font-mono text-zinc-400">${activeJob.pesoGramos}g</span>
+                </div>
+                <div class="flex items-center gap-1.5 pt-1 text-[11px] text-zinc-400 border-t border-zinc-800/80 mt-1">
+                  <span class="w-3 h-3 rounded-full border border-white/20" style="background-color: ${spool.hex}"></span>
+                  <span class="text-zinc-300 font-medium">${spool.marca} ${spool.material}</span>
+                  <span class="text-zinc-500 font-mono">(${spool.color})</span>
+                </div>
+              </div>
+
+              <!-- Barra de Progreso -->
+              <div class="space-y-1.5">
+                <div class="flex justify-between text-xs font-mono">
+                  <span class="text-zinc-400">Progreso:</span>
+                  <span class="font-bold text-emerald-400">${percent}% &bull; resta ~${remStr}</span>
+                </div>
+                <div class="w-full h-2.5 bg-zinc-950 rounded-full overflow-hidden p-0.5 border border-zinc-800">
+                  <div class="h-full bg-gradient-to-r from-bambu-500 to-emerald-400 rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-zinc-500 font-mono">
+                  <span>${activeJob.tiempoTranscurridoMin}m / ${activeJob.tiempoMinutos}m</span>
+                  <span>Costo: $${activeJob.costoTotal.toFixed(2)} | Venta: $${activeJob.precioVenta.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="mt-4 pt-3 border-t border-zinc-800 flex items-center gap-2">
+              <button onclick="completarTrabajo(${activeJob.id})" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-emerald-500/20 active:scale-95">
+                <i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>
+                <span>Completar</span>
+              </button>
+              <button onclick="cancelarTrabajo(${activeJob.id})" class="p-2 bg-zinc-800 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 rounded-xl text-xs transition" title="Cancelar trabajo">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+        } else {
+          card.className = "bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-5 flex flex-col justify-between relative";
+          card.innerHTML = `
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-zinc-500 inline-block"></span>
+                    DISPONIBLE / STANDBY
+                  </span>
+                  <h4 class="text-sm font-bold text-white mt-0.5">${printer.nombre}</h4>
+                </div>
+                <span class="px-2 py-0.5 text-[10px] font-mono bg-zinc-800 text-zinc-400 rounded-md">
+                  ${printer.consumo_kw} kW
+                </span>
+              </div>
+
+              <div class="bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/60 text-center space-y-1.5 py-6">
+                <i data-lucide="check-circle" class="w-7 h-7 text-zinc-600 mx-auto"></i>
+                <div class="text-xs font-semibold text-zinc-300">Cama limpia y calibrada</div>
+                <div class="text-[11px] text-zinc-500">Lista para procesar trabajos de la cola</div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-zinc-800">
+              <button onclick="asignarSiguienteTrabajo(${printer.id})" class="w-full bg-zinc-800 hover:bg-zinc-700 text-emerald-400 hover:text-white font-semibold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 border border-zinc-700 transition">
+                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                <span>Asignar Trabajo de Cola</span>
+              </button>
+            </div>
+          `;
+        }
+        printersGrid.appendChild(card);
+      });
+
+      // 2. Render Tabla de Cola de Espera
+      const waitingTbody = document.getElementById("waiting-jobs-tbody");
+      waitingTbody.innerHTML = "";
+
+      if (enEspera.length === 0) {
+        waitingTbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="p-8 text-center text-zinc-500">
+              <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-zinc-600"></i>
+              <span>No hay trabajos pendientes en la lista de espera. ¡Usa el cotizador para agregar nuevos!</span>
+            </td>
+          </tr>
+        `;
+      } else {
+        enEspera.forEach(job => {
+          const spool = bobinas.find(b => b.id === job.bobinaId) || bobinas[0];
+          const printer = impresoras.find(p => p.id === job.impresoraId) || impresoras[0];
+          const hasStock = spool.peso_actual_g >= job.pesoGramos;
+
+          let prioColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+          if (job.prioridad === "alta") prioColor = "bg-rose-500/10 text-rose-400 border-rose-500/20 font-bold";
+          else if (job.prioridad === "baja") prioColor = "bg-zinc-800 text-zinc-400 border-zinc-700";
+
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-zinc-800/40 transition";
+          tr.innerHTML = `
+            <td class="p-3.5">
+              <div class="font-mono font-bold text-white text-[11px]">${job.codigo}</div>
+              <span class="px-1.5 py-0.5 text-[9px] uppercase tracking-wider rounded border ${prioColor}">${job.prioridad}</span>
+            </td>
+            <td class="p-3.5">
+              <div class="font-bold text-white max-w-xs truncate" title="${job.nombre}">${job.nombre}</div>
+              <div class="text-[11px] text-zinc-400 flex items-center gap-1">
+                <span>Impresora sugerida:</span>
+                <span class="text-zinc-300 font-mono">${printer.nombre.split(" ")[2] || printer.nombre}</span>
+              </div>
+            </td>
+            <td class="p-3.5 text-zinc-300 font-medium">${job.cliente}</td>
+            <td class="p-3.5">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full border border-white/20" style="background-color: ${spool.hex}"></span>
+                <span class="text-zinc-200">${spool.marca} ${spool.material}</span>
+              </div>
+              <div class="text-[10px] mt-0.5 ${hasStock ? 'text-emerald-400' : 'text-rose-400 font-semibold'}">
+                ${hasStock ? `Stock OK (${spool.peso_actual_g}g disp)` : `¡Faltan ${job.pesoGramos - spool.peso_actual_g}g!`}
+              </div>
+            </td>
+            <td class="p-3.5 font-mono text-zinc-300">
+              <div>${job.pesoGramos}g</div>
+              <div class="text-[10px] text-zinc-500">${Math.floor(job.tiempoMinutos / 60)}h ${job.tiempoMinutos % 60}m</div>
+            </td>
+            <td class="p-3.5 font-mono text-rose-300 font-bold">$${job.costoTotal.toFixed(2)}</td>
+            <td class="p-3.5 font-mono text-zinc-100 font-bold">$${job.precioVenta.toFixed(2)}</td>
+            <td class="p-3.5 font-mono text-emerald-400 font-bold">+$${job.gananciaNeta.toFixed(2)}</td>
+            <td class="p-3.5 text-right space-x-1">
+              <button onclick="iniciarTrabajo(${job.id})" class="px-2.5 py-1 bg-bambu-500 hover:bg-bambu-400 text-zinc-950 font-bold rounded-lg text-xs transition inline-flex items-center gap-1">
+                <i data-lucide="play" class="w-3 h-3 fill-current"></i>
+                <span>Imprimir</span>
+              </button>
+              <button onclick="cancelarTrabajo(${job.id})" class="p-1 text-zinc-500 hover:text-rose-400 transition" title="Eliminar de cola">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
+          `;
+          waitingTbody.appendChild(tr);
+        });
+      }
+
+      // 3. Render Historial de Trabajos del Período
+      const historyTbody = document.getElementById("history-jobs-tbody");
+      historyTbody.innerHTML = "";
+
+      if (completados.length === 0) {
+        historyTbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="p-8 text-center text-zinc-500">
+              No hay trabajos completados en este período temporal.
+            </td>
+          </tr>
+        `;
+      } else {
+        completados.forEach(job => {
+          const spool = bobinas.find(b => b.id === job.bobinaId) || bobinas[0];
+          const printer = impresoras.find(p => p.id === job.impresoraId) || impresoras[0];
+          const marginSale = job.precioVenta > 0 ? ((job.gananciaNeta / job.precioVenta) * 100).toFixed(1) : "0";
+
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-zinc-800/40 transition text-xs";
+          tr.innerHTML = `
+            <td class="p-3.5 font-mono text-zinc-400">${job.fecha}</td>
+            <td class="p-3.5 font-sans font-bold text-white truncate max-w-xs" title="${job.nombre}">${job.nombre}</td>
+            <td class="p-3.5 font-sans text-zinc-300">${job.cliente}</td>
+            <td class="p-3.5 font-sans text-zinc-300">
+              <div>${printer.nombre.split(" ")[2] || printer.nombre}</div>
+              <div class="text-[10px] text-zinc-500">${spool.marca} ${spool.material}</div>
+            </td>
+            <td class="p-3.5 font-mono text-zinc-300">${job.pesoGramos}g &bull; ${Math.floor(job.tiempoMinutos/60)}h ${job.tiempoMinutos%60}m</td>
+            <td class="p-3.5 font-mono text-rose-300 font-bold">$${job.costoTotal.toFixed(2)}</td>
+            <td class="p-3.5 font-mono text-zinc-200 font-bold">$${job.precioVenta.toFixed(2)}</td>
+            <td class="p-3.5 font-mono text-emerald-400 font-bold">+$${job.gananciaNeta.toFixed(2)}</td>
+            <td class="p-3.5 text-center">
+              <span class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ✓ Listo
+              </span>
+            </td>
+          `;
+          historyTbody.appendChild(tr);
+        });
+      }
+
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // RENDER: BALANCE ECONÓMICO & FINANZAS
+    // ==========================================
+    function renderFinance() {
+      // 1. Inversión Inicial
+      const totalMaquinaria = inversionInicial.maquinaria.reduce((acc, m) => acc + m.costo, 0);
+      const totalHerramientas = inversionInicial.herramientasEquipos.reduce((acc, h) => acc + h.costo, 0);
+      const totalInsumos = inversionInicial.insumosIniciales.reduce((acc, i) => acc + i.costo, 0);
+      const totalInversion = totalMaquinaria + totalHerramientas + totalInsumos;
+
+      document.getElementById("kpi-total-inversion").textContent = `$${totalInversion.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+
+      // Ganancia neta histórica total acumulada (para el ROI)
+      const allCompleted = trabajos.filter(t => t.estado === "completado");
+      const totalHistoricNetProfit = allCompleted.reduce((acc, t) => acc + t.gananciaNeta, 0);
+      const roiPercent = totalInversion > 0 ? ((totalHistoricNetProfit / totalInversion) * 100) : 0;
+
+      document.getElementById("kpi-roi-percent").textContent = `${roiPercent.toFixed(1)}%`;
+      document.getElementById("kpi-roi-bar").style.width = `${Math.min(100, roiPercent)}%`;
+      document.getElementById("kpi-roi-profit").textContent = `$${totalHistoricNetProfit.toFixed(2)}`;
+
+      const badgeRoi = document.getElementById("badge-finance-roi");
+      if (badgeRoi) badgeRoi.textContent = `ROI ${roiPercent.toFixed(0)}%`;
+
+      // 2. Resultados del período seleccionado
+      const filtered = filtrarTrabajosPorPeriodo(trabajos);
+      const completedInPeriod = filtered.filter(t => t.estado === "completado");
+      
+      const periodRevenue = completedInPeriod.reduce((acc, t) => acc + t.precioVenta, 0);
+      const periodCost = completedInPeriod.reduce((acc, t) => acc + t.costoTotal, 0);
+      const periodNet = periodRevenue - periodCost;
+      const profitMarginOnSale = periodRevenue > 0 ? ((periodNet / periodRevenue) * 100) : 0;
+
+      const costFilament = completedInPeriod.reduce((acc, t) => acc + t.costoFilamento, 0);
+      const costElec = completedInPeriod.reduce((acc, t) => acc + t.costoElectricidad, 0);
+      const costMach = completedInPeriod.reduce((acc, t) => acc + t.costoAmortizacion, 0);
+      const costLabor = completedInPeriod.reduce((acc, t) => acc + t.costoManoObra, 0);
+
+      document.getElementById("fin-stat-revenue").textContent = `$${periodRevenue.toFixed(2)}`;
+      document.getElementById("fin-stat-jobs-count").textContent = `en ${completedInPeriod.length} trabajos`;
+      document.getElementById("fin-stat-cost").textContent = `$${periodCost.toFixed(2)}`;
+      document.getElementById("fin-stat-net").textContent = `+$${periodNet.toFixed(2)}`;
+      document.getElementById("fin-stat-margin").textContent = `${profitMarginOnSale.toFixed(1)}% s/ venta`;
+
+      document.getElementById("fin-cost-fil").textContent = `$${costFilament.toFixed(2)}`;
+      document.getElementById("fin-cost-elec").textContent = `$${costElec.toFixed(2)}`;
+      document.getElementById("fin-cost-mach").textContent = `$${costMach.toFixed(2)}`;
+      document.getElementById("fin-cost-labor").textContent = `$${costLabor.toFixed(2)}`;
+
+      // 3. Detalle Económico por Trabajo
+      const financeTbody = document.getElementById("finance-jobs-tbody");
+      financeTbody.innerHTML = "";
+
+      if (completedInPeriod.length === 0) {
+        financeTbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="p-8 text-center text-zinc-500 font-sans">
+              No hay registros económicos para el período seleccionado.
+            </td>
+          </tr>
+        `;
+      } else {
+        completedInPeriod.forEach(job => {
+          const otherCosts = job.costoElectricidad + job.costoAmortizacion + job.costoManoObra;
+          const margin = job.precioVenta > 0 ? ((job.gananciaNeta / job.precioVenta) * 100).toFixed(1) : "0";
+
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-zinc-800/40 transition text-xs";
+          tr.innerHTML = `
+            <td class="p-3.5 text-zinc-400">${job.fecha}</td>
+            <td class="p-3.5 font-sans font-bold text-white max-w-xs truncate" title="${job.nombre}">${job.nombre}</td>
+            <td class="p-3.5 font-sans text-zinc-300">${job.cliente}</td>
+            <td class="p-3.5 text-zinc-300">$${job.costoFilamento.toFixed(2)}</td>
+            <td class="p-3.5 text-zinc-400">$${otherCosts.toFixed(2)}</td>
+            <td class="p-3.5 text-rose-400 font-bold">$${job.costoTotal.toFixed(2)}</td>
+            <td class="p-3.5 text-zinc-100 font-bold">$${job.precioVenta.toFixed(2)}</td>
+            <td class="p-3.5 text-emerald-400 font-bold">+$${job.gananciaNeta.toFixed(2)}</td>
+            <td class="p-3.5 text-center">
+              <span class="px-2 py-0.5 text-[10px] font-mono rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ${margin}%
+              </span>
+            </td>
+          `;
+          financeTbody.appendChild(tr);
+        });
+      }
+
+      lucide.createIcons();
+    }
+
+    // ==========================================
+    // CHART.JS: GRÁFICO DIARIO DE FINANZAS
+    // ==========================================
+    function initDailyFinanceChart() {
+      const ctx = document.getElementById("dailyFinanceChart");
+      if (!ctx) return;
+
+      const chartData = buildChartDatasets();
+
+      financeChartInstance = new Chart(ctx, {
+        type: "line",
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              display: false, // Customized in HTML header
+            },
+            tooltip: {
+              backgroundColor: "rgba(24, 24, 27, 0.95)",
+              titleColor: "#f4f4f5",
+              bodyColor: "#d4d4d8",
+              borderColor: "#3f3f46",
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                label: function(context) {
+                  const val = context.parsed.y || 0;
+                  return ` ${context.dataset.label}: $${val.toFixed(2)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: "rgba(255, 255, 255, 0.05)",
+              },
+              ticks: {
+                color: "#a1a1aa",
+                font: {
+                  family: "JetBrains Mono",
+                  size: 11
+                }
+              }
+            },
+            y: {
+              grid: {
+                color: "rgba(255, 255, 255, 0.05)",
+              },
+              ticks: {
+                color: "#a1a1aa",
+                font: {
+                  family: "JetBrains Mono",
+                  size: 11
+                },
+                callback: function(val) {
+                  return `$${val}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateFinanceChart() {
+      if (!financeChartInstance) {
+        initDailyFinanceChart();
+        return;
+      }
+      const newDatasets = buildChartDatasets();
+      financeChartInstance.data = newDatasets;
+      financeChartInstance.update();
+    }
+
+    function buildChartDatasets() {
+      // Determinar rango de fechas según periodoFiltro
+      let fechas = [];
+      if (periodoFiltro === "semana") {
+        fechas = ["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"];
+      } else if (periodoFiltro === "mes") {
+        // Todas las fechas del mes que tienen registros
+        const datesSet = new Set(trabajos.filter(t => t.fecha.startsWith("2026-09")).map(t => t.fecha));
+        fechas = Array.from(datesSet).sort();
+      } else {
+        // General
+        const datesSet = new Set(trabajos.map(t => t.fecha));
+        fechas = Array.from(datesSet).sort();
+      }
+
+      const labels = fechas.map(f => {
+        const parts = f.split("-");
+        const day = `${parts[2]}/${parts[1]}`;
+        if (f === "2026-09-14") return `${day} (Hoy)`;
+        return day;
+      });
+
+      const dataIngresos = [];
+      const dataCostos = [];
+      const dataNeto = [];
+
+      let cumIngresos = 0;
+      let cumCostos = 0;
+      let cumNeto = 0;
+
+      fechas.forEach(fecha => {
+        const jobsOnDate = trabajos.filter(t => t.fecha === fecha && t.estado === "completado");
+        const dayRev = jobsOnDate.reduce((acc, t) => acc + t.precioVenta, 0);
+        const dayCost = jobsOnDate.reduce((acc, t) => acc + t.costoTotal, 0);
+        const dayNet = dayRev - dayCost;
+
+        if (chartMode === "cumulative") {
+          cumIngresos += dayRev;
+          cumCostos += dayCost;
+          cumNeto += dayNet;
+
+          dataIngresos.push(Math.round(cumIngresos * 100) / 100);
+          dataCostos.push(Math.round(cumCostos * 100) / 100);
+          dataNeto.push(Math.round(cumNeto * 100) / 100);
+        } else {
+          dataIngresos.push(Math.round(dayRev * 100) / 100);
+          dataCostos.push(Math.round(dayCost * 100) / 100);
+          dataNeto.push(Math.round(dayNet * 100) / 100);
+        }
+      });
+
+      return {
+        labels: labels,
+        datasets: [
+          {
+            label: "Ingresos (Ventas)",
+            data: dataIngresos,
+            borderColor: "#10b981", // Emerald
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            tension: 0.35,
+            fill: false,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          },
+          {
+            label: "Costos de Producción",
+            data: dataCostos,
+            borderColor: "#f43f5e", // Rose
+            backgroundColor: "rgba(244, 63, 94, 0.1)",
+            tension: 0.35,
+            fill: false,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          },
+          {
+            label: 'Ganancia Neta ("La Resta")',
+            data: dataNeto,
+            borderColor: "#00ae42", // Bambu green
+            backgroundColor: "rgba(0, 174, 66, 0.15)",
+            tension: 0.35,
+            borderWidth: 3,
+            fill: true,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: "#00ae42"
+          }
+        ]
+      };
+    }
+
+    // ==========================================
+    // TRABAJOS: ACCIONES & ESTADOS
+    // ==========================================
+    function iniciarTrabajo(jobId) {
+      const job = trabajos.find(t => t.id === jobId);
+      if (!job) return;
+
+      // Check if suggested printer is free, else find free one
+      let assignedPrinter = impresoras.find(p => p.id === job.impresoraId && !trabajos.some(t => t.impresoraId === p.id && t.estado === "ejecucion"));
+      if (!assignedPrinter) {
+        assignedPrinter = impresoras.find(p => !trabajos.some(t => t.impresoraId === p.id && t.estado === "ejecucion"));
+      }
+
+      if (!assignedPrinter) {
+        alert("⚠️ Todas las impresoras de la flota están actualmente ocupadas en ejecución. Espera a que termine una pieza o cancélala.");
+        return;
+      }
+
+      job.estado = "ejecucion";
+      job.impresoraId = assignedPrinter.id;
+      job.tiempoTranscurridoMin = 0;
+
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+
+      alert(`🚀 ¡Trabajo "${job.nombre}" iniciado en ${assignedPrinter.nombre}!\nAvance en vivo disponible en la pestaña de Trabajos.`);
+    }
+
+    function completarTrabajo(jobId) {
+      const job = trabajos.find(t => t.id === jobId);
+      if (!job) return;
+
+      job.estado = "completado";
+      job.tiempoTranscurridoMin = job.tiempoMinutos;
+      job.fecha = "2026-09-14"; // Finalizado hoy
+
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+
+      alert(`✅ ¡Trabajo "${job.nombre}" completado con éxito!\n\n• Facturación: $${job.precioVenta.toFixed(2)}\n• Costo producción: $${job.costoTotal.toFixed(2)}\n• Ganancia Neta sumada: +$${job.gananciaNeta.toFixed(2)}\n\nEl gráfico económico del día ha sido actualizado.`);
+    }
+
+    function cancelarTrabajo(jobId) {
+      const jobIndex = trabajos.findIndex(t => t.id === jobId);
+      if (jobIndex === -1) return;
+
+      if (confirm(`¿Estás seguro de cancelar el trabajo "${trabajos[jobIndex].nombre}"?`)) {
+        trabajos.splice(jobIndex, 1);
+        renderJobs();
+        renderFinance();
+        updateFinanceChart();
+      }
+    }
+
+    function asignarSiguienteTrabajo(printerId) {
+      const nextWaiting = trabajos.find(t => t.estado === "espera");
+      if (!nextWaiting) {
+        alert("ℹ️ No hay trabajos pendientes en lista de espera. ¡Puedes cotizar uno en el Cotizador o crear uno rápido!");
+        return;
+      }
+      nextWaiting.impresoraId = printerId;
+      nextWaiting.estado = "ejecucion";
+      nextWaiting.tiempoTranscurridoMin = 0;
+
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+    }
+
+    // ==========================================
+    // MODALES: NUEVO TRABAJO Y NUEVO ACTIVO
+    // ==========================================
+    function initModalDropdowns() {
+      const spoolSelect = document.getElementById("job-input-bobina");
+      if (!spoolSelect) return;
+      spoolSelect.innerHTML = "";
+      bobinas.forEach(b => {
+        const opt = document.createElement("option");
+        opt.value = b.id;
+        opt.textContent = `${b.marca} ${b.material} - ${b.color} (${b.peso_actual_g}g disp)`;
+        spoolSelect.appendChild(opt);
+      });
+    }
+
+    function abrirModalNuevoTrabajo() {
+      initModalDropdowns();
+      document.getElementById("modal-nuevo-trabajo").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function cerrarModalNuevoTrabajo() {
+      document.getElementById("modal-nuevo-trabajo").classList.add("hidden");
+    }
+
+    function guardarNuevoTrabajo(e) {
+      e.preventDefault();
+      const nombre = document.getElementById("job-input-nombre").value.trim();
+      const cliente = document.getElementById("job-input-cliente").value.trim();
+      const prioridad = document.getElementById("job-input-prioridad").value;
+      const impresoraId = parseInt(document.getElementById("job-input-impresora").value);
+      const bobinaId = parseInt(document.getElementById("job-input-bobina").value);
+      const gramos = parseFloat(document.getElementById("job-input-gramos").value);
+      const tiempoMin = parseFloat(document.getElementById("job-input-tiempo").value);
+      const margen = parseFloat(document.getElementById("job-input-margen").value);
+
+      const spool = bobinas.find(b => b.id === bobinaId) || bobinas[0];
+      const printer = impresoras.find(p => p.id === impresoraId) || impresoras[0];
+
+      // Cost calculations
+      const costFilament = gramos * (spool.costo_compra / spool.peso_total_g);
+      const costElec = printer.consumo_kw * (tiempoMin / 60) * configCostos.costo_kwh;
+      const costMach = (printer.costo_maquina / printer.horas_vida_util) * (tiempoMin / 60);
+      const costLabor = (0.25) * configCostos.costo_hora_operador;
+      const totalCost = costFilament + costElec + costMach + costLabor;
+      const suggestedPrice = totalCost * (1 + (margen / 100));
+      const netProfit = suggestedPrice - totalCost;
+
+      const newId = Date.now();
+      const newJob = {
+        id: newId,
+        codigo: `TRB-${String(trabajos.length + 1).padStart(3, '0')}`,
+        nombre: nombre.endsWith(".3mf") ? nombre : `${nombre}.3mf`,
+        cliente: cliente,
+        impresoraId: impresoraId,
+        bobinaId: bobinaId,
+        pesoGramos: gramos,
+        tiempoMinutos: tiempoMin,
+        tiempoTranscurridoMin: 0,
+        estado: "espera",
+        costoFilamento: costFilament,
+        costoElectricidad: costElec,
+        costoAmortizacion: costMach,
+        costoManoObra: costLabor,
+        costoTotal: totalCost,
+        precioVenta: suggestedPrice,
+        gananciaNeta: netProfit,
+        fecha: "2026-09-14",
+        prioridad: prioridad
+      };
+
+      trabajos.unshift(newJob);
+      cerrarModalNuevoTrabajo();
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+
+      alert(`✅ Trabajo "${newJob.nombre}" agregado a la lista de espera con éxito.`);
+    }
+
+    function abrirModalInversion() {
+      document.getElementById("modal-nuevo-activo").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function cerrarModalInversion() {
+      document.getElementById("modal-nuevo-activo").classList.add("hidden");
+    }
+
+    function guardarNuevoActivo(e) {
+      e.preventDefault();
+      const categoria = document.getElementById("inv-input-categoria").value;
+      const nombre = document.getElementById("inv-input-nombre").value.trim();
+      const costo = parseFloat(document.getElementById("inv-input-costo").value);
+
+      const item = { id: Date.now(), nombre, costo };
+
+      if (categoria === "maquinaria") {
+        inversionInicial.maquinaria.push(item);
+      } else if (categoria === "insumos") {
+        inversionInicial.insumosIniciales.push(item);
+      } else {
+        inversionInicial.herramientasEquipos.push(item);
+      }
+
+      cerrarModalInversion();
+      renderFinance();
+      alert(`✅ Activo "${nombre}" ($${costo.toFixed(2)}) sumado a la inversión inicial.`);
+    }
+
+    // ==========================================
+    // ACTION: CONFIRMAR ORDEN DESDE COTIZADOR
+    // ==========================================
+    function confirmOrder() {
+      const spoolId = parseInt(document.getElementById("select-spool").value);
+      const printerId = parseInt(document.getElementById("select-printer").value);
+      const grams = parseFloat(document.getElementById("input-grams").value);
+      const printTimeMin = parseFloat(document.getElementById("input-print-time").value);
+      const operatorTimeMin = parseFloat(document.getElementById("input-operator-time").value);
+      const marginPercent = parseFloat(document.getElementById("slider-margin").value) || 150;
+      const kwhRate = parseFloat(document.getElementById("input-kwh-rate").value) || 0.15;
+      const operatorRate = parseFloat(document.getElementById("input-operator-rate").value) || 8.00;
+
+      const spool = bobinas.find(b => b.id === spoolId);
+      const printer = impresoras.find(p => p.id === printerId) || impresoras[0];
+      const filename = document.getElementById("dropzone-filename").textContent.trim() || "Pieza_Cotizada_Bambu.3mf";
+
+      if (!spool) return;
+
+      if (spool.peso_actual_g < grams) {
+        alert(`❌ No puedes crear el pedido: La bobina ${spool.marca} ${spool.material} solo tiene ${spool.peso_actual_g}g y se requieren ${grams}g.`);
+        return;
+      }
+
+      // 1. Descontar Stock de filamento
+      spool.peso_actual_g = Math.round((spool.peso_actual_g - grams) * 100) / 100;
+      renderInventory();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      document.getElementById("select-spool").value = spoolId;
+      calculateAll();
+
+      // 2. Calcular costos exactos
+      const spoolCostPerGram = spool.costo_compra / spool.peso_total_g;
+      const costFilament = grams * spoolCostPerGram;
+      const printHours = printTimeMin / 60.0;
+      const operatorHours = operatorTimeMin / 60.0;
+      const costElectricity = printer.consumo_kw * printHours * kwhRate;
+      const hourlyAmortization = printer.costo_maquina / printer.horas_vida_util;
+      const costMachine = hourlyAmortization * printHours;
+      const costLabor = operatorHours * operatorRate;
+      const totalCost = costFilament + costElectricity + costMachine + costLabor;
+      const suggestedPrice = totalCost * (1 + (marginPercent / 100.0));
+      const netProfit = suggestedPrice - totalCost;
+
+      // 3. Crear nuevo Trabajo en la lista
+      const newJob = {
+        id: Date.now(),
+        codigo: `TRB-${String(trabajos.length + 1).padStart(3, '0')}`,
+        nombre: filename,
+        cliente: "Cliente BambuFarm OS",
+        impresoraId: printerId,
+        bobinaId: spoolId,
+        pesoGramos: grams,
+        tiempoMinutos: printTimeMin,
+        tiempoTranscurridoMin: 0,
+        estado: "espera", // Se carga en lista de espera
+        costoFilamento: costFilament,
+        costoElectricidad: costElectricity,
+        costoAmortizacion: costMachine,
+        costoManoObra: costLabor,
+        costoTotal: totalCost,
+        precioVenta: suggestedPrice,
+        gananciaNeta: netProfit,
+        fecha: "2026-09-14",
+        prioridad: "alta"
+      };
+
+      trabajos.unshift(newJob);
+      renderJobs();
+      renderFinance();
+      updateFinanceChart();
+
+      if (confirm(`✅ ¡Pedido registrado con éxito en BambuFarm OS!\n\n• Pieza: ${filename}\n• Se descontaron ${grams}g de la bobina "${spool.marca} ${spool.material}" (Quedan: ${spool.peso_actual_g}g)\n• Ingreso estimado: $${suggestedPrice.toFixed(2)}\n• Ganancia Neta ("La Resta"): +$${netProfit.toFixed(2)}\n• Agregado a la Lista de Espera.\n\n¿Deseas ir ahora a la pestaña de Trabajos & Flota para verlo?`)) {
+        switchTab("jobs");
+      }
+    }
+
+    function resetDemoData() {
+      bobinas[0].peso_actual_g = 850;
+      bobinas[1].peso_actual_g = 140;
+      bobinas[2].peso_actual_g = 620;
+      bobinas[3].peso_actual_g = 380;
+      trabajos = JSON.parse(JSON.stringify(MOCK_TRABAJOS_INIT));
+      periodoFiltro = "semana";
+      chartMode = "daily";
+
+      renderInventory();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      setPeriodoFiltro("semana");
+      calculateAll();
+      alert("✓ Datos mock restablecidos a su estado inicial.");
+    }
+  </script>
+</body>
+</html>

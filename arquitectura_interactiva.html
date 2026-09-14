@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MendoDeco - Arquitectura de Sistemas & Flujo de Datos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bambu: {
+              400: '#10b981',
+              500: '#00ae42',
+              600: '#009237',
+            },
+            dark: {
+              950: '#09090b',
+              900: '#121215',
+              850: '#18181b',
+              800: '#27272a',
+              700: '#3f3f46'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .step-active {
+      border-color: #00ae42;
+      background-color: rgba(0, 174, 66, 0.12);
+    }
+    .pulse-glow {
+      box-shadow: 0 0 20px rgba(0, 174, 66, 0.35);
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+  </style>
+</head>
+<body class="bg-dark-950 text-zinc-100 min-h-screen flex flex-col antialiased selection:bg-bambu-500 selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-dark-800 bg-dark-900/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-bambu-500/20 border border-bambu-500/40 flex items-center justify-center text-bambu-500 font-bold text-xl shadow-inner">
+          3D
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg text-white tracking-tight">MendoDeco Farm OS</h1>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+              Guía de Ingeniería en Sistemas
+            </span>
+          </div>
+          <p class="text-xs text-zinc-400">Explicación visual e interactiva de la arquitectura del software y flujo de datos</p>
+        </div>
+      </div>
+      
+      <!-- Action buttons -->
+      <div class="flex items-center gap-2">
+        <a href="index.html" class="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-xs font-medium text-zinc-300 border border-dark-700 transition-colors flex items-center gap-1.5">
+          <span>Abrir App Principal (index.html)</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex overflow-x-auto gap-2 border-t border-dark-800/60 pt-2 pb-2">
+      <button onclick="switchTab('pipeline')" id="tab-btn-pipeline" class="tab-button px-4 py-2 text-xs font-semibold rounded-lg bg-bambu-500 text-white shadow-sm flex items-center gap-2 transition-all">
+        <span>⚡ Simulador de Flujo .3MF</span>
+      </button>
+      <button onclick="switchTab('arch')" id="tab-btn-arch" class="tab-button px-4 py-2 text-xs font-semibold rounded-lg bg-dark-850 hover:bg-dark-800 text-zinc-400 hover:text-white border border-dark-800 transition-all flex items-center gap-2">
+        <span>🏛️ Frontend vs Backend (Dónde estamos)</span>
+      </button>
+      <button onclick="switchTab('math')" id="tab-btn-math" class="tab-button px-4 py-2 text-xs font-semibold rounded-lg bg-dark-850 hover:bg-dark-800 text-zinc-400 hover:text-white border border-dark-800 transition-all flex items-center gap-2">
+        <span>📐 Fórmulas Matemáticas de Costos</span>
+      </button>
+      <button onclick="switchTab('files')" id="tab-btn-files" class="tab-button px-4 py-2 text-xs font-semibold rounded-lg bg-dark-850 hover:bg-dark-800 text-zinc-400 hover:text-white border border-dark-800 transition-all flex items-center gap-2">
+        <span>📂 Mapa de Archivos (.ts, .tsx, .json)</span>
+      </button>
+      <button onclick="switchTab('roadmap')" id="tab-btn-roadmap" class="tab-button px-4 py-2 text-xs font-semibold rounded-lg bg-dark-850 hover:bg-dark-800 text-zinc-400 hover:text-white border border-dark-800 transition-all flex items-center gap-2">
+        <span>🚀 Cómo Agregar el Backend (Base de Datos)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: SIMULADOR DE FLUJO .3MF (PIPELINE) -->
+    <!-- ========================================================================= -->
+    <section id="tab-pipeline" class="tab-content block space-y-6">
+      <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dark-800">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>⚡ Pipeline de Deserialización: ¿Cómo se lee el archivo .3mf?</span>
+            </h2>
+            <p class="text-xs text-zinc-400 mt-1">
+              Un archivo de impresión <code class="text-bambu-400 font-mono">.3mf</code> no es magia ni un formato binario propietario opaco: es un <strong class="text-zinc-200">archivo ZIP estándar</strong> con documentos XML adentro.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="runSimulation()" class="px-4 py-2 bg-bambu-500 hover:bg-bambu-600 text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 transition-transform active:scale-95">
+              <span>▶ Ejecutar Simulación Paso a Paso</span>
+            </button>
+            <button onclick="resetSimulation()" class="px-3 py-2 bg-dark-800 hover:bg-dark-700 text-zinc-300 text-xs font-medium rounded-lg border border-dark-700">
+              Reiniciar
+            </button>
+          </div>
+        </div>
+
+        <!-- Flow Visual Steps -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 pt-5">
+          <!-- Step 1 -->
+          <div id="step-card-1" onclick="selectStep(1)" class="cursor-pointer border border-dark-800 bg-dark-850/70 rounded-xl p-3.5 transition-all hover:border-zinc-700 step-active">
+            <div class="flex items-center justify-between text-xs font-mono text-zinc-500 mb-1">
+              <span>ETAPA 1</span>
+              <span class="w-2 h-2 rounded-full bg-bambu-500"></span>
+            </div>
+            <div class="font-semibold text-sm text-white">1. Input Binario</div>
+            <p class="text-xs text-zinc-400 mt-1">El usuario suelta un archivo <code class="text-xs text-emerald-400">.3mf</code> en el navegador.</p>
+          </div>
+
+          <!-- Step 2 -->
+          <div id="step-card-2" onclick="selectStep(2)" class="cursor-pointer border border-dark-800 bg-dark-850/70 rounded-xl p-3.5 transition-all hover:border-zinc-700">
+            <div class="flex items-center justify-between text-xs font-mono text-zinc-500 mb-1">
+              <span>ETAPA 2</span>
+              <span class="w-2 h-2 rounded-full bg-zinc-600"></span>
+            </div>
+            <div class="font-semibold text-sm text-white">2. Descompresión ZIP</div>
+            <p class="text-xs text-zinc-400 mt-1"><code class="text-xs text-emerald-400">JSZip</code> descomprime el árbol en la memoria RAM.</p>
+          </div>
+
+          <!-- Step 3 -->
+          <div id="step-card-3" onclick="selectStep(3)" class="cursor-pointer border border-dark-800 bg-dark-850/70 rounded-xl p-3.5 transition-all hover:border-zinc-700">
+            <div class="flex items-center justify-between text-xs font-mono text-zinc-500 mb-1">
+              <span>ETAPA 3</span>
+              <span class="w-2 h-2 rounded-full bg-zinc-600"></span>
+            </div>
+            <div class="font-semibold text-sm text-white">3. Parseo XML (DOM)</div>
+            <p class="text-xs text-zinc-400 mt-1">Se lee <code class="text-xs text-emerald-400">slice_info.config</code> con <code class="text-xs">DOMParser</code>.</p>
+          </div>
+
+          <!-- Step 4 -->
+          <div id="step-card-4" onclick="selectStep(4)" class="cursor-pointer border border-dark-800 bg-dark-850/70 rounded-xl p-3.5 transition-all hover:border-zinc-700">
+            <div class="flex items-center justify-between text-xs font-mono text-zinc-500 mb-1">
+              <span>ETAPA 4</span>
+              <span class="w-2 h-2 rounded-full bg-zinc-600"></span>
+            </div>
+            <div class="font-semibold text-sm text-white">4. Mapeo a Modelos</div>
+            <p class="text-xs text-zinc-400 mt-1">Se genera el objeto estructurado en TypeScript.</p>
+          </div>
+
+          <!-- Step 5 -->
+          <div id="step-card-5" onclick="selectStep(5)" class="cursor-pointer border border-dark-800 bg-dark-850/70 rounded-xl p-3.5 transition-all hover:border-zinc-700">
+            <div class="flex items-center justify-between text-xs font-mono text-zinc-500 mb-1">
+              <span>ETAPA 5</span>
+              <span class="w-2 h-2 rounded-full bg-zinc-600"></span>
+            </div>
+            <div class="font-semibold text-sm text-white">5. React Re-render</div>
+            <p class="text-xs text-zinc-400 mt-1"><code class="text-xs text-emerald-400">useState</code> actualiza el Virtual DOM y calcula costos.</p>
+          </div>
+        </div>
+
+        <!-- Step Detailed Inspector Panel -->
+        <div class="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-dark-950 p-5 rounded-xl border border-dark-800">
+          
+          <!-- Left: Explanation for Systems Engineers -->
+          <div class="lg:col-span-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <span id="detail-tag" class="px-2.5 py-1 text-xs font-mono font-semibold rounded bg-bambu-500/20 text-bambu-400 border border-bambu-500/30">
+                ETAPA 1: INPUT BINARIO (CLIENT-SIDE)
+              </span>
+              <span class="text-xs text-zinc-500 font-mono">Archivo: src/components/BambuFarmDashboard.tsx</span>
+            </div>
+            
+            <h3 id="detail-title" class="text-base font-bold text-white">
+              El evento Drag & Drop recibe un objeto Blob / File en memoria
+            </h3>
+
+            <p id="detail-desc" class="text-xs text-zinc-300 leading-relaxed">
+              En HTML5, cuando arrastras un archivo al navegador, la API de File no sube nada a internet. El navegador crea un apuntador en memoria RAM (<code class="font-mono text-emerald-400">File extends Blob</code>). En aplicaciones tradicionales se enviaba este archivo con un <code class="font-mono">POST multipart/form-data</code> a un servidor PHP/Python. Pero en nuestra arquitectura, se procesa en el hilo del cliente para dar respuesta en milisegundos sin consumir ancho de banda de red.
+            </p>
+
+            <div class="bg-dark-900 border border-dark-800 rounded-lg p-3">
+              <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <span>Concepto de Ingeniería:</span>
+              </div>
+              <p id="detail-concept" class="text-xs text-zinc-300">
+                <strong>I/O Asíncrono en el Cliente:</strong> Se usa la interfaz <code class="font-mono text-bambu-400">FileReader</code> o el stream del archivo directamente en el motor V8 de JavaScript, evitando latencia de red (Network RTT = 0ms).
+              </p>
+            </div>
+          </div>
+
+          <!-- Right: Interactive Code / Data Viewer -->
+          <div class="lg:col-span-6 flex flex-col">
+            <div class="flex items-center justify-between bg-dark-900 px-3 py-2 rounded-t-lg border-t border-x border-dark-800">
+              <span id="detail-code-label" class="text-xs font-mono text-zinc-400 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                Código en ejecución real
+              </span>
+              <span class="text-xs text-zinc-500 font-mono">TypeScript / JS</span>
+            </div>
+            <pre id="detail-code" class="bg-dark-900/90 text-zinc-200 p-3.5 rounded-b-lg border border-dark-800 font-mono text-xs overflow-x-auto leading-relaxed h-64">
+// 1. El usuario suelta el archivo pikachu_p1s.3mf
+const onDrop = async (e: React.DragEvent) => {
+  const file = e.dataTransfer.files[0];
+  console.log(file.name); // "pikachu_p1s.3mf"
+  console.log(file.size); // 12,450,200 bytes (~12 MB)
+  console.log(file.type); // "application/zip" o "model/3mf"
+
+  // Llamamos a nuestro parser en src/utils/bambuParser.ts:
+  const metadata = await parseBambu3mf(file);
+};
+            </pre>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: ARQUITECTURA GENERAL (FRONTEND VS BACKEND) -->
+    <!-- ========================================================================= -->
+    <section id="tab-arch" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Systems Architecture Stack -->
+        <div class="lg:col-span-7 bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="border-b border-dark-800 pb-3">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>🏛️ El Stack del Sistema: ¿Qué está hecho y qué falta?</span>
+            </h2>
+            <p class="text-xs text-zinc-400 mt-1">Como futuro Ingeniero en Sistemas, piensa el software en capas de abstracción:</p>
+          </div>
+
+          <!-- Stack Layers Visual -->
+          <div class="space-y-3">
+            
+            <!-- Layer 1: Hardware / Real World -->
+            <div class="p-4 rounded-xl bg-dark-850 border border-dark-700/80">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono text-amber-400 font-semibold uppercase">1. Capa Física & Laminador (Hardware)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">EXTERNO</span>
+              </div>
+              <h3 class="font-bold text-sm text-white mt-1">Impresoras Bambu (P1S, X1C, A1) + Bambu Studio</h3>
+              <p class="text-xs text-zinc-400 mt-1">
+                El usuario lamina el modelo 3D en Bambu Studio. Bambu calcula los caminos del extrusor, el tiempo estimado y el consumo de filamento, y empaqueta todo en un archivo <code class="text-amber-300">.3mf</code>.
+              </p>
+            </div>
+
+            <!-- Layer 2: Frontend (DONE) -->
+            <div class="p-4 rounded-xl bg-bambu-500/10 border border-bambu-500/40 relative overflow-hidden">
+              <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-bambu-500/10 rounded-full blur-xl pointer-events-none"></div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono text-emerald-400 font-semibold uppercase">2. Capa Presentación & Lógica Cliente (SPA)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">100% IMPLEMENTADO</span>
+              </div>
+              <h3 class="font-bold text-sm text-white mt-1">Next.js 14 + React 18 + Tailwind + JSZip</h3>
+              <p class="text-xs text-zinc-300 mt-1">
+                La interfaz gráfica (UI) vive aquí. Contiene el visualizador de costos, el módulo de advertencias de stock, y el algoritmo que descomprime el <code class="text-emerald-300">.3mf</code> en memoria.
+              </p>
+              <div class="mt-2 text-[11px] text-zinc-400 font-mono bg-dark-950/80 p-2 rounded border border-dark-800">
+                <strong>¿Por qué funciona sin servidor?</strong> Porque es una SPA (Single Page Application). El navegador descarga el HTML/JS una sola vez y ejecuta toda la lógica localmente.
+              </div>
+            </div>
+
+            <!-- Layer 3: Backend API (PENDING) -->
+            <div class="p-4 rounded-xl bg-purple-950/20 border border-purple-800/40 border-dashed">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono text-purple-400 font-semibold uppercase">3. Capa de Negocio & Servidor (Backend API)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">PENDIENTE</span>
+              </div>
+              <h3 class="font-bold text-sm text-white mt-1">API REST o GraphQL (Next.js Server Actions o Node/Express)</h3>
+              <p class="text-xs text-zinc-400 mt-1">
+                Esta capa todavía no existe. Su responsabilidad futura será: autenticación de usuarios (login), recibir pedidos de clientes, enviar órdenes de impresión a las máquinas por red (MQTT Bambu) y guardar datos persistentemente.
+              </p>
+            </div>
+
+            <!-- Layer 4: Database (PENDING) -->
+            <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-800/40 border-dashed">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-mono text-blue-400 font-semibold uppercase">4. Capa de Persistencia (Base de Datos)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20">PENDIENTE</span>
+              </div>
+              <h3 class="font-bold text-sm text-white mt-1">PostgreSQL / SQLite + Prisma ORM</h3>
+              <p class="text-xs text-zinc-400 mt-1">
+                Aquí se guardarán en disco tus tablas relacionales: <code class="text-blue-300">Clientes</code>, <code class="text-blue-300">Pedidos</code>, <code class="text-blue-300">Bobinas</code> y <code class="text-blue-300">Impresoras</code>. Ahora mismo, si refrescas la web, se pierden los cambios porque no hay BD.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right: Why no backend yet? Engineering answer -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <span>💡 Pregunta Clave: ¿Por qué empezamos por el Frontend?</span>
+            </h3>
+            <div class="mt-3 space-y-3 text-xs text-zinc-300 leading-relaxed">
+              <p>
+                En ingeniería de software moderno existe la metodología <strong>Prototipado Vertical / Lean</strong>:
+              </p>
+              <ul class="list-disc pl-4 space-y-1.5 text-zinc-400">
+                <li><strong class="text-zinc-200">Validar el riesgo técnico más complejo:</strong> El mayor desafío técnico era saber si podíamos descomprimir y extraer en milisegundos los datos de Bambu Studio directamente en el navegador del operario sin saturar un servidor. ¡Y se logró!</li>
+                <li><strong class="text-zinc-200">Definir la UX y las Fórmulas:</strong> Antes de crear tablas en SQL, necesitábamos saber con precisión qué variables matemáticas intervienen (kW, vida útil, peso de purga del AMS, tiempos de setup).</li>
+                <li><strong class="text-zinc-200">El modelo ya está diseñado:</strong> En los archivos <a href="diagrama_clases.html" class="text-emerald-400 underline">diagrama_clases.html</a> ya diseñamos las entidades UML que se usarán exactamente para crear las tablas de la base de datos cuando hagamos el backend.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <span>🔄 ¿Qué pasa hoy cuando cambias datos en la página?</span>
+            </h3>
+            <div class="mt-3 space-y-2 text-xs text-zinc-300">
+              <p>Hoy en día, cuando agregas una bobina o cambias el margen de ganancia:</p>
+              <div class="bg-dark-950 p-3 rounded-lg border border-dark-800 font-mono text-[11px] text-zinc-400">
+                <span class="text-emerald-400">Memoria RAM del Navegador:</span><br/>
+                Usuario cambia valor ➔ React `setBobinas([...])`<br/>
+                ➔ Virtual DOM re-evalúa la fórmula<br/>
+                ➔ El DOM se repinta en pantalla.<br/>
+                <span class="text-rose-400">⚠️ F5 (Recargar página) ➔ Vuelve al estado inicial.</span>
+              </div>
+              <p class="text-zinc-400">
+                Cuando conectemos el backend, ese <code class="text-emerald-400">setBobinas</code> además enviará un <code class="text-zinc-200 font-mono">fetch('/api/bobinas', { method: 'POST' })</code> para guardarlo en la Base de Datos.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: FÓRMULAS MATEMÁTICAS (ALGORITMO DE COSTOS) -->
+    <!-- ========================================================================= -->
+    <section id="tab-math" class="tab-content hidden space-y-6">
+      <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl">
+        <div class="border-b border-dark-800 pb-3">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>📐 Algoritmo de Costos de Fabricación 3D</span>
+          </h2>
+          <p class="text-xs text-zinc-400 mt-1">
+            Esta es la lógica matemática implementada en <code class="font-mono text-bambu-400">src/components/BambuFarmDashboard.tsx</code>. Modifica los controles interactivos para ver cómo se calculan los costos.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5">
+          
+          <!-- Controls (Inputs) -->
+          <div class="lg:col-span-5 bg-dark-950 p-4 rounded-xl border border-dark-800 space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Variables de Entrada (Parámetros)</h3>
+
+            <!-- Grams -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-zinc-300">Peso Laminado:</span>
+                <span id="math-val-grams" class="font-mono text-emerald-400 font-bold">150 g</span>
+              </div>
+              <input type="range" id="math-input-grams" min="10" max="1000" step="5" value="150" oninput="updateMath()" class="w-full accent-bambu-500 cursor-pointer">
+            </div>
+
+            <!-- Print Time -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-zinc-300">Tiempo de Impresión:</span>
+                <span id="math-val-hours" class="font-mono text-emerald-400 font-bold">4.5 horas</span>
+              </div>
+              <input type="range" id="math-input-hours" min="0.5" max="24" step="0.5" value="4.5" oninput="updateMath()" class="w-full accent-bambu-500 cursor-pointer">
+            </div>
+
+            <!-- Spool Price -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-zinc-300">Costo Rollo Filamento (1 kg):</span>
+                <span id="math-val-spool" class="font-mono text-emerald-400 font-bold">$22.00</span>
+              </div>
+              <input type="range" id="math-input-spool" min="10" max="60" step="1" value="22" oninput="updateMath()" class="w-full accent-bambu-500 cursor-pointer">
+            </div>
+
+            <!-- Printer Power -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-zinc-300">Potencia Impresora (Bambu P1S):</span>
+                <span id="math-val-kw" class="font-mono text-emerald-400 font-bold">0.28 kW (280W)</span>
+              </div>
+              <input type="range" id="math-input-kw" min="0.1" max="0.6" step="0.02" value="0.28" oninput="updateMath()" class="w-full accent-bambu-500 cursor-pointer">
+            </div>
+
+            <!-- Profit Margin -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-zinc-300">Margen de Ganancia:</span>
+                <span id="math-val-margin" class="font-mono text-emerald-400 font-bold">150 %</span>
+              </div>
+              <input type="range" id="math-input-margin" min="50" max="300" step="10" value="150" oninput="updateMath()" class="w-full accent-bambu-500 cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Mathematical Breakdown -->
+          <div class="lg:col-span-7 space-y-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Ecuaciones del Sistema</h3>
+
+            <!-- Formula 1: Material -->
+            <div class="bg-dark-850 p-3 rounded-xl border border-dark-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-white">1. Costo Material</div>
+                <div class="text-[11px] font-mono text-zinc-400 mt-0.5">
+                  \( C_{mat} = \text{gramos} \times \frac{\text{costo\_rollo}}{1000\text{g}} \)
+                </div>
+              </div>
+              <div id="math-res-mat" class="text-sm font-mono font-bold text-emerald-400">$3.30</div>
+            </div>
+
+            <!-- Formula 2: Energy -->
+            <div class="bg-dark-850 p-3 rounded-xl border border-dark-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-white">2. Costo Electricidad</div>
+                <div class="text-[11px] font-mono text-zinc-400 mt-0.5">
+                  \( C_{elec} = \text{horas} \times \text{kW} \times \text{precio\_kWh}(\$0.15) \)
+                </div>
+              </div>
+              <div id="math-res-elec" class="text-sm font-mono font-bold text-emerald-400">$0.19</div>
+            </div>
+
+            <!-- Formula 3: Depreciation -->
+            <div class="bg-dark-850 p-3 rounded-xl border border-dark-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-white">3. Amortización de Máquina</div>
+                <div class="text-[11px] font-mono text-zinc-400 mt-0.5">
+                  \( C_{amort} = \text{horas} \times \frac{\text{valor\_maquina}(\$950)}{\text{vida\_util}(8000\text{h})} \)
+                </div>
+              </div>
+              <div id="math-res-amort" class="text-sm font-mono font-bold text-emerald-400">$0.53</div>
+            </div>
+
+            <!-- Formula 4: Labor -->
+            <div class="bg-dark-850 p-3 rounded-xl border border-dark-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-white">4. Mano de Obra (Operador)</div>
+                <div class="text-[11px] font-mono text-zinc-400 mt-0.5">
+                  \( C_{oper} = \text{setup}(0.2\text{h}) \times \text{tarifa\_hora}(\$8.00) \)
+                </div>
+              </div>
+              <div id="math-res-oper" class="text-sm font-mono font-bold text-emerald-400">$1.60</div>
+            </div>
+
+            <!-- Total Cost & Price -->
+            <div class="bg-bambu-500/15 border border-bambu-500/40 p-4 rounded-xl flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-emerald-400 uppercase">Costo Neto de Fabricación</div>
+                <div id="math-res-cost-total" class="text-xl font-mono font-extrabold text-white mt-1">$5.62</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs font-bold text-emerald-400 uppercase">Precio de Venta Sugerido (PVP)</div>
+                <div id="math-res-pvp" class="text-2xl font-mono font-extrabold text-bambu-400 mt-1">$14.05</div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: MAPA DE ARCHIVOS (.ts, .tsx, .json) -->
+    <!-- ========================================================================= -->
+    <section id="tab-files" class="tab-content hidden space-y-6">
+      <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl space-y-5">
+        <div class="border-b border-dark-800 pb-3">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>📂 Anatomía del Proyecto: ¿Qué significa cada archivo?</span>
+          </h2>
+          <p class="text-xs text-zinc-400 mt-1">Como estudiante de sistemas, aquí tienes la explicación de qué rol cumple cada tecnología y extensión de archivo:</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- File 1: bambuParser.ts -->
+          <div class="bg-dark-850 p-4 rounded-xl border border-dark-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs font-bold text-emerald-400">src/utils/bambuParser.ts</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-800 text-zinc-300">TypeScript Puro (.ts)</span>
+            </div>
+            <h4 class="font-semibold text-sm text-white">Módulo de Lógica de Negocio (Backend/Utils)</h4>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              No contiene nada visual ni HTML. Es una clase/módulo de funciones puras. Recibe el archivo binario, llama a <code class="text-emerald-400">JSZip</code>, navega el árbol de archivos con expresiones regulares y selectores XML, y extrae los datos de ingeniería de impresión.
+            </p>
+          </div>
+
+          <!-- File 2: BambuFarmDashboard.tsx -->
+          <div class="bg-dark-850 p-4 rounded-xl border border-dark-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs font-bold text-cyan-400">src/components/BambuFarmDashboard.tsx</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-800 text-zinc-300">React + TSX (.tsx)</span>
+            </div>
+            <h4 class="font-semibold text-sm text-white">Componente Visual & Controlador de Estado</h4>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              La extensión <code class="text-cyan-400">.tsx</code> significa <em>TypeScript XML</em>. Permite mezclar lógica de programación en JavaScript con etiquetas visuales (HTML interactivo). Aquí se maneja la vista del usuario, los formularios y la actualización reactiva.
+            </p>
+          </div>
+
+          <!-- File 3: package.json -->
+          <div class="bg-dark-850 p-4 rounded-xl border border-dark-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs font-bold text-amber-400">package.json</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-800 text-zinc-300">Manifiesto JSON</span>
+            </div>
+            <h4 class="font-semibold text-sm text-white">El Gestor de Dependencias del Proyecto</h4>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Es el equivalente a un <code class="text-amber-300">requirements.txt</code> en Python, un <code class="text-amber-300">pom.xml</code> en Java (Maven) o un <code class="text-amber-300">Cargo.toml</code> en Rust. Lista qué librerías necesita el proyecto y qué comandos se usan para ejecutarlo (<code class="text-zinc-200 font-mono">npm run dev</code>).
+            </p>
+          </div>
+
+          <!-- File 4: index.html -->
+          <div class="bg-dark-850 p-4 rounded-xl border border-dark-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs font-bold text-purple-400">index.html</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-dark-800 text-zinc-300">HTML Monolítico</span>
+            </div>
+            <h4 class="font-semibold text-sm text-white">Versión Ejecutable Sin Entorno Node.js</h4>
+            <p class="text-xs text-zinc-400 leading-relaxed">
+              Como no tenías Node.js instalado en tu PC, creamos este archivo para que no te quedes sin ver la aplicación. Empaqueta todo el HTML, Tailwind CSS y el lector de archivos en un único archivo que cualquier navegador abre con doble clic.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: ROADMAP PARA EL BACKEND (BASE DE DATOS) -->
+    <!-- ========================================================================= -->
+    <section id="tab-roadmap" class="tab-content hidden space-y-6">
+      <div class="bg-dark-900 border border-dark-800 rounded-2xl p-5 shadow-xl space-y-5">
+        <div class="border-b border-dark-800 pb-3">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>🚀 Plan de Ingeniería para Agregar el Backend y la Base de Datos</span>
+          </h2>
+          <p class="text-xs text-zinc-400 mt-1">Estos son los 3 pasos de ingeniería necesarios cuando decidas dar el salto al backend:</p>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Step 1 -->
+          <div class="p-4 rounded-xl bg-dark-850 border border-dark-800 flex gap-4">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 font-mono">
+              1
+            </div>
+            <div>
+              <h4 class="font-bold text-sm text-white">Instalar Node.js en Windows</h4>
+              <p class="text-xs text-zinc-400 mt-1">
+                Node.js es el entorno de ejecución que te permite correr JavaScript y TypeScript como servidor en tu máquina, fuera del navegador. Con él instalado, podrás ejecutar <code class="font-mono text-emerald-400">npm install</code> para descargar Next.js y React.
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="p-4 rounded-xl bg-dark-850 border border-dark-800 flex gap-4">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0 font-mono">
+              2
+            </div>
+            <div>
+              <h4 class="font-bold text-sm text-white">Implementar Base de Datos con Prisma ORM + SQLite / PostgreSQL</h4>
+              <p class="text-xs text-zinc-400 mt-1">
+                Usaremos el diseño que ya hicimos en <a href="diagrama_clases.html" class="text-blue-400 underline">diagrama_clases.html</a>. Definiremos los esquemas para guardar pedidos, clientes, stock de bobinas e impresoras en un archivo SQLite local o base de datos PostgreSQL en la nube.
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="p-4 rounded-xl bg-dark-850 border border-dark-800 flex gap-4">
+            <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm shrink-0 font-mono">
+              3
+            </div>
+            <div>
+              <h4 class="font-bold text-sm text-white">Crear API Endpoints (CRUD)</h4>
+              <p class="text-xs text-zinc-400 mt-1">
+                Crearemos rutas como <code class="font-mono text-purple-300">GET /api/pedidos</code> y <code class="font-mono text-purple-300">POST /api/pedidos</code> para que cuando el operario confirme una cotización de Bambu, se guarde permanentemente en la base de datos y descuente automáticamente los gramos de la bobina correspondiente.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-dark-800 bg-dark-900/60 py-4 text-center text-xs text-zinc-500">
+    MendoDeco 3D Farm OS • Diseñado como herramienta de estudio y producción para Sistemas de Gestión 3D
+  </footer>
+
+  <!-- Script for Interactive Features -->
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('bg-bambu-500', 'text-white');
+        btn.classList.add('bg-dark-850', 'text-zinc-400');
+      });
+
+      const selectedTab = document.getElementById('tab-' + tabId);
+      const selectedBtn = document.getElementById('tab-btn-' + tabId);
+
+      if (selectedTab) selectedTab.classList.remove('hidden');
+      if (selectedBtn) {
+        selectedBtn.classList.remove('bg-dark-850', 'text-zinc-400');
+        selectedBtn.classList.add('bg-bambu-500', 'text-white');
+      }
+    }
+
+    // Step Simulator Data
+    const STEPS_DATA = {
+      1: {
+        tag: "ETAPA 1: INPUT BINARIO (CLIENT-SIDE)",
+        file: "src/components/BambuFarmDashboard.tsx",
+        title: "El usuario arrastra el archivo pikachu_p1s.3mf a la zona Drag & Drop",
+        desc: "El navegador captura el evento 'drop' y obtiene una referencia al objeto File en memoria RAM. No se realiza ninguna petición de red ni se gasta ancho de banda: todo ocurre de forma local en el hilo de ejecución del cliente.",
+        concept: "I/O Asíncrono en el Cliente: Manejo de blobs binarios directamente en el navegador del operario.",
+        code: `// 1. Captura del archivo en el componente React
+const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file.name.endsWith(".3mf")) {
+    alert("Por favor selecciona un archivo .3mf válido");
+    return;
+  }
+  // Enviamos el File al parser utilitario
+  parseBambu3mf(file);
+};`
+      },
+      2: {
+        tag: "ETAPA 2: DESCOMPRESIÓN ZIP (JSZip)",
+        file: "src/utils/bambuParser.ts",
+        title: "JSZip descomprime la estructura interna del contenedor .3mf",
+        desc: "Un archivo .3mf es en realidad un archivo ZIP con especificación 3D Manufacturing Format. Adentro contiene carpetas como '3D/', 'Metadata/' y archivos XML de configuración. JSZip mapea estos archivos a buffers de texto en memoria.",
+        concept: "Estructuras de Archivos Empaquetados: Los formatos modernos (.docx, .xlsx, .apk, .3mf) son casi siempre ZIPs que encapsulan XMLs y binarios.",
+        code: `// 2. Descomprimir el contenedor .3mf en memoria
+const zip = await JSZip.loadAsync(file);
+
+// Explorar qué contiene adentro:
+console.log(Object.keys(zip.files));
+// [
+//   "[Content_Types].xml",
+//   "3D/3dmodel.model",
+//   "Metadata/slice_info.config",  <-- ¡ESTE ES EL QUE NOS INTERESA!
+//   "Metadata/plate_1.gcode"
+// ]`
+      },
+      3: {
+        tag: "ETAPA 3: PARSEO XML (DOMParser)",
+        file: "src/utils/bambuParser.ts",
+        title: "DOMParser convierte el texto de slice_info.config en un árbol XML",
+        desc: "Bambu Studio graba los segundos de impresión, los gramos por color y los nombres de las piezas en etiquetas XML. Usamos la API estándar del navegador DOMParser para consultar nodos con querySelectorAll.",
+        concept: "Deserialización de Datos Estructurados: Conversión de cadenas de texto XML/JSON a objetos nativos navegables.",
+        code: `// 3. Extraer y parsear slice_info.config
+const sliceFile = zip.file("Metadata/slice_info.config");
+const xmlText = await sliceFile.async("text");
+
+const parser = new DOMParser();
+const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+// Ejemplo del XML interno de Bambu:
+// <plate>
+//   <metadata key="prediction" value="16200" /> <!-- 4.5 horas -->
+//   <metadata key="weight" value="150.2" />     <!-- 150 gramos -->
+//   <filament id="1" type="PLA" color="#00AE42" used_g="150.2" />
+// </plate>`
+      },
+      4: {
+        tag: "ETAPA 4: MAPEO A MODELOS DE DOMINIO",
+        file: "src/utils/bambuParser.ts",
+        title: "Transformación a la interfaz tipada BambuSliceMetadata",
+        desc: "Extraemos valores de los atributos XML, convertimos segundos a minutos, redondeamos los gramos y construimos un objeto TypeScript con tipado fuerte, listo para ser consumido por cualquier componente.",
+        concept: "Data Transfer Object (DTO): Aislar la complejidad del formato externo (.3mf) de la lógica interna de nuestra aplicación.",
+        code: `// 4. Retorno del objeto tipado en TypeScript
+export interface BambuSliceMetadata {
+  fileName: "pikachu_p1s.3mf",
+  printTimeMinutes: 270,           // 4.5 horas
+  totalWeightGrams: 150.2,         // 150.2 gramos
+  plateCount: 1,
+  plates: [{ index: 1, name: "Pikachu", printTimeMinutes: 270, weightGrams: 150.2 }],
+  filaments: [{ id: 1, type: "PLA", color: "#00AE42", usedGrams: 150.2 }],
+  isSliced: true
+};`
+      },
+      5: {
+        tag: "ETAPA 5: REACT RE-RENDER & COSTOS",
+        file: "src/components/BambuFarmDashboard.tsx",
+        title: "useState actualiza el estado, re-evalúa costos y pinta la interfaz",
+        desc: "Al invocar setMetadata(data), React detecta un cambio de estado en el árbol de componentes. Dispara el cálculo reactivo con useMemo para computar el costo de electricidad, mano de obra y amortización, y actualiza la pantalla al instante.",
+        concept: "Programación Reactiva y Virtual DOM: Cuando el estado cambia, la vista se sincroniza de forma idempotente y automática.",
+        code: `// 5. El componente React recibe los datos y actualiza la UI
+setSliceMetadata(parsedData);
+
+// useMemo calcula los costos en tiempo real:
+const costoFilamento = (parsedData.totalWeightGrams / 1000) * bobina.costo_compra;
+const costoLuz = (parsedData.printTimeMinutes / 60) * impresora.consumo_kw * 0.15;
+const costoTotal = costoFilamento + costoLuz + amortizacion + operador;
+
+// ¡La UI muestra inmediatamente los $14.05 de precio sugerido!`
+      }
+    };
+
+    function selectStep(stepNum) {
+      for (let i = 1; i <= 5; i++) {
+        const card = document.getElementById('step-card-' + i);
+        if (i === stepNum) {
+          card.classList.add('step-active');
+          card.querySelector('.w-2').classList.remove('bg-zinc-600');
+          card.querySelector('.w-2').classList.add('bg-bambu-500');
+        } else {
+          card.classList.remove('step-active');
+          card.querySelector('.w-2').classList.remove('bg-bambu-500');
+          card.querySelector('.w-2').classList.add('bg-zinc-600');
+        }
+      }
+
+      const data = STEPS_DATA[stepNum];
+      document.getElementById('detail-tag').innerText = data.tag;
+      document.getElementById('detail-title').innerText = data.title;
+      document.getElementById('detail-desc').innerText = data.desc;
+      document.getElementById('detail-concept').innerHTML = `<strong>Concepto de Ingeniería:</strong> ${data.concept}`;
+      document.getElementById('detail-code').innerText = data.code;
+    }
+
+    let simInterval = null;
+    function runSimulation() {
+      let currentStep = 1;
+      selectStep(currentStep);
+      clearInterval(simInterval);
+      simInterval = setInterval(() => {
+        currentStep++;
+        if (currentStep > 5) {
+          clearInterval(simInterval);
+          return;
+        }
+        selectStep(currentStep);
+      }, 1600);
+    }
+
+    function resetSimulation() {
+      clearInterval(simInterval);
+      selectStep(1);
+    }
+
+    // Math calculation logic
+    function updateMath() {
+      const grams = parseFloat(document.getElementById('math-input-grams').value);
+      const hours = parseFloat(document.getElementById('math-input-hours').value);
+      const spoolPrice = parseFloat(document.getElementById('math-input-spool').value);
+      const kw = parseFloat(document.getElementById('math-input-kw').value);
+      const margin = parseFloat(document.getElementById('math-input-margin').value);
+
+      document.getElementById('math-val-grams').innerText = grams + " g";
+      document.getElementById('math-val-hours').innerText = hours + " horas";
+      document.getElementById('math-val-spool').innerText = "$" + spoolPrice.toFixed(2);
+      document.getElementById('math-val-kw').innerText = kw.toFixed(2) + " kW (" + (kw * 1000).toFixed(0) + "W)";
+      document.getElementById('math-val-margin').innerText = margin + " %";
+
+      // Calculations
+      const costMat = (grams / 1000) * spoolPrice;
+      const costElec = hours * kw * 0.15; // 0.15 USD / kWh
+      const costAmort = hours * (950 / 8000); // 950$ machine / 8000 hours
+      const costOper = 0.2 * 8.0; // 0.2h setup * $8/h
+
+      const totalCost = costMat + costElec + costAmort + costOper;
+      const pvp = totalCost * (1 + margin / 100);
+
+      document.getElementById('math-res-mat').innerText = "$" + costMat.toFixed(2);
+      document.getElementById('math-res-elec').innerText = "$" + costElec.toFixed(2);
+      document.getElementById('math-res-amort').innerText = "$" + costAmort.toFixed(2);
+      document.getElementById('math-res-oper').innerText = "$" + costOper.toFixed(2);
+      document.getElementById('math-res-cost-total').innerText = "$" + totalCost.toFixed(2);
+      document.getElementById('math-res-pvp').innerText = "$" + pvp.toFixed(2);
+    }
+
+    // Initialize math on load
+    updateMath();
+  </script>
+</body>
+</html>

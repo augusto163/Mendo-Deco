@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagrama de Clases - Granja 3D (Bambu Studio)</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --panel-bg: #1e293b;
+      --border-color: #334155;
+      --text-color: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .title-group h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .title-group p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    button, a.button {
+      background-color: var(--primary);
+      color: #0f172a;
+      border: none;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    button:hover, a.button:hover {
+      background-color: var(--primary-hover);
+      color: white;
+    }
+
+    button.secondary, a.button.secondary {
+      background-color: var(--border-color);
+      color: var(--text-color);
+    }
+
+    button.secondary:hover, a.button.secondary:hover {
+      background-color: #475569;
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: auto;
+    }
+
+    #diagram-container {
+      background-color: #ffffff;
+      padding: 2.5rem;
+      border-radius: 0.75rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+      max-width: 95%;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+    }
+
+    @media print {
+      header, footer, .actions {
+        display: none !important;
+      }
+      body, main, #diagram-container {
+        background: white !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-group">
+      <h1>🖨️ Sistema de Gestión - Granja de Impresión 3D</h1>
+      <p>Diagrama de Clases UML del Dominio (Integración con Bambu Studio)</p>
+    </div>
+    <div class="actions">
+      <button onclick="downloadSVG()">⬇️ Descargar SVG</button>
+      <button onclick="downloadPNG()">🖼️ Descargar PNG</button>
+      <button class="secondary" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      <a href="diagrama_clases.mmd" download="diagrama_clases.mmd" class="button secondary">📄 Código .MMD</a>
+    </div>
+  </header>
+
+  <main>
+    <div id="diagram-container">
+      <pre class="mermaid" id="mermaid-code">
+classDiagram
+    direction TB
+
+    %% Enums para tipado seguro
+    class EstadoPedido {
+        <<enumeration>>
+        EN_COLA
+        EN_PROCESO
+        TERMINADO
+        ENTREGADO
+        CANCELADO
+    }
+
+    class EstadoTrabajo {
+        <<enumeration>>
+        PENDIENTE
+        IMPRIMIENDO
+        COMPLETADO
+        FALLIDO
+        CANCELADO
+    }
+
+    class EstadoImpresora {
+        <<enumeration>>
+        ACTIVA
+        IMPRIMIENDO
+        MANTENIMIENTO
+        INACTIVA
+    }
+
+    class EstadoBobina {
+        <<enumeration>>
+        NUEVA
+        EN_USO
+        AGOTADA
+        DESCARTADA
+    }
+
+    %% Clases del Dominio
+    class Cliente {
+        +int id
+        +String nombre
+        +String telefono
+        +String email
+        +Date fechaRegistro
+        +String notas
+        +crearPedido(titulo: String, fechaEntrega: Date) Pedido
+        +obtenerHistorialPedidos() List~Pedido~
+    }
+
+    class Pedido {
+        +int id
+        +String titulo
+        +EstadoPedido estadoGeneral
+        +Date fechaCreacion
+        +Date fechaEntregaEsperada
+        +float precioTotalCobrado
+        +float costoTotalCalculado
+        +agregarTrabajo(trabajo: TrabajoImpresion) void
+        +calcularCostoTotal() float
+        +calcularPrecioSugerido(margen: float) float
+        +actualizarEstado() void
+    }
+
+    class Impresora {
+        +int id
+        +String nombre
+        +float consumoKw
+        +float costoMaquina
+        +int horasVidaUtil
+        +EstadoImpresora estado
+        +getCostoAmortizacionPorHora() float
+        +estaDisponible() bool
+        +registrarFinTrabajo() void
+    }
+
+    class Bobina {
+        +int id
+        +String marca
+        +String material
+        +String color
+        +float pesoInicialG
+        +float pesoActualG
+        +float costoCompra
+        +EstadoBobina estado
+        +getCostoPorGramo() float
+        +descontarStock(gramos: float) bool
+        +tieneStockSuficiente(gramos: float) bool
+    }
+
+    class TrabajoImpresion {
+        +int id
+        +String nombreArchivo
+        +EstadoTrabajo estado
+        +int tiempoImpresionMinutos
+        +int tiempoOperadorMinutos
+        +float costoElectricidad
+        +float costoAmortizacion
+        +float costoManoObra
+        +calcularCostoElectricidad(costoKwh: float) float
+        +calcularAmortizacion() float
+        +calcularCostoManoObra(costoHoraOp: float) float
+        +calcularCostoTotal(config: ConfiguracionCostos) float
+        +procesarConsumoMaterial() void
+    }
+
+    class UsoMaterial {
+        +int id
+        +float gramosUsados
+        +float costoMaterialCalculado
+        +calcularCosto() float
+    }
+
+    class ConfiguracionCostos {
+        +int id
+        +float costoKwh
+        +float costoHoraOperador
+        +float margenGananciaDefault
+        +float tasaFallaEstimada
+        +aplicarFactorFalla(costoBase: float) float
+    }
+
+    %% Relaciones y Cardinalidades
+    Cliente "1" --> "0..*" Pedido : realiza
+    Pedido "1" *-- "1..*" TrabajoImpresion : contiene (piezas)
+    Impresora "1" --> "0..*" TrabajoImpresion : ejecuta
+    TrabajoImpresion "1" *-- "1..*" UsoMaterial : requiere
+    Bobina "1" --> "0..*" UsoMaterial : suministra
+    TrabajoImpresion ..> ConfiguracionCostos : consulta costos
+      </pre>
+    </div>
+  </main>
+
+  <footer>
+    MendoDeco &bull; Sistema de Gestión de Impresión 3D
+  </footer>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      class: {
+        defaultRenderer: 'dagre-d3'
+      }
+    });
+
+    function getSvgElement() {
+      return document.querySelector('#diagram-container svg');
+    }
+
+    function downloadSVG() {
+      const svg = getSvgElement();
+      if (!svg) {
+        alert('El diagrama aún se está generando...');
+        return;
+      }
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'diagrama_clases_granja_3d.svg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadPNG() {
+      const svg = getSvgElement();
+      if (!svg) {
+        alert('El diagrama aún se está generando...');
+        return;
+      }
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      const bBox = svg.getBoundingClientRect();
+      const scale = 2; // Alta resolución
+      canvas.width = (bBox.width || 1200) * scale;
+      canvas.height = (bBox.height || 900) * scale;
+
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = function () {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = 'diagrama_clases_granja_3d.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+      img.src = url;
+    }
+  </script>
+</body>
+</html>
