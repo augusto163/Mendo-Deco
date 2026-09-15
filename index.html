@@ -637,11 +637,41 @@
         </div>
       </div>
 
-      <!-- Spool Cards Grid -->
+      <!-- Toolbar: Buscador, Filtros de Material y Botón + Nueva Bobina -->
+      <div class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+        <div class="flex flex-1 items-center gap-3">
+          <div class="relative flex-1 max-w-md">
+            <i data-lucide="search" class="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+            <input
+              type="text"
+              id="spool-search-input"
+              oninput="handleSpoolSearch(this.value)"
+              placeholder="Buscar por color, marca o material..."
+              class="w-full bg-zinc-950/80 border border-zinc-800/80 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-bambu-500 transition"
+            />
+          </div>
+          <!-- Material Filter Pills Container -->
+          <div id="spool-material-pills" class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button
+            onclick="abrirModalNuevaBobina()"
+            class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-zinc-950 bg-bambu-500 hover:bg-bambu-400 shadow-lg shadow-bambu-500/20 transition active:scale-95"
+          >
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>+ Nueva Bobina</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Spool Status Legend & Count -->
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold text-white flex items-center gap-2">
           <span>Bobinas Activas en Rack / AMS</span>
-          <span class="text-xs font-normal text-zinc-400">(Monitoreo en tiempo real)</span>
+          <span id="spools-filtered-count" class="text-xs font-normal text-zinc-400"></span>
         </h2>
         <div class="text-xs text-zinc-400 flex items-center gap-4">
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Normal (&gt;50%)</span>
@@ -1108,6 +1138,302 @@
         </form>
       </div>
     </div>
+    <!-- MODAL: CREAR / EDITAR BOBINA DE FILAMENTO (ABM) -->
+    <div id="modal-bobina" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-bambu-500/20 text-bambu-500 rounded-lg">
+              <i data-lucide="disc" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 id="modal-bobina-titulo" class="text-base font-bold text-white">Nueva Bobina de Filamento</h3>
+              <p class="text-xs text-zinc-400">Registra o actualiza el stock y costos de tu material</p>
+            </div>
+          </div>
+          <button onclick="cerrarModalBobina()" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="form-bobina" onsubmit="guardarBobina(event)" class="space-y-4 text-xs">
+          <input type="hidden" id="bobina-form-id" value="" />
+
+          <!-- Marca -->
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Marca / Fabricante</label>
+            <input
+              type="text"
+              id="bobina-input-marca"
+              required
+              placeholder="Ej: eSun, Bambu Lab, Grilon3..."
+              class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500"
+            />
+            <div class="flex flex-wrap gap-1.5 mt-1.5">
+              <button type="button" onclick="setBobinaMarcaPreset('Bambu Lab')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">Bambu Lab</button>
+              <button type="button" onclick="setBobinaMarcaPreset('eSun')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">eSun</button>
+              <button type="button" onclick="setBobinaMarcaPreset('Grilon3')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">Grilon3</button>
+              <button type="button" onclick="setBobinaMarcaPreset('Printalot')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">Printalot</button>
+              <button type="button" onclick="setBobinaMarcaPreset('Polymaker')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">Polymaker</button>
+              <button type="button" onclick="setBobinaMarcaPreset('GST3D')" class="px-2 py-0.5 rounded-md bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-[10px] font-mono border border-zinc-700/60">GST3D</button>
+            </div>
+          </div>
+
+          <!-- Material & Color Name Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Tipo de Material</label>
+              <input
+                type="text"
+                id="bobina-input-material"
+                required
+                placeholder="Ej: PLA+, PETG, TPU..."
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500"
+              />
+              <div class="flex flex-wrap gap-1 mt-1.5">
+                <button type="button" onclick="setBobinaMaterialPreset('PLA+')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">PLA+</button>
+                <button type="button" onclick="setBobinaMaterialPreset('PETG')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">PETG</button>
+                <button type="button" onclick="setBobinaMaterialPreset('PLA Basic')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">PLA Basic</button>
+                <button type="button" onclick="setBobinaMaterialPreset('Silk PLA')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">Silk</button>
+                <button type="button" onclick="setBobinaMaterialPreset('ABS')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">ABS</button>
+                <button type="button" onclick="setBobinaMaterialPreset('TPU 95A')" class="px-1.5 py-0.5 rounded bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 text-[10px]">TPU</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Nombre del Color</label>
+              <input
+                type="text"
+                id="bobina-input-color"
+                required
+                placeholder="Ej: Negro Mate, Blanco Nieve..."
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-bambu-500"
+              />
+            </div>
+          </div>
+
+          <!-- Hex Visual Color Picker -->
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Color Visual (Muestra)</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                id="bobina-input-hex-color"
+                oninput="syncBobinaHexPicker(this.value)"
+                class="w-10 h-10 rounded-xl border border-zinc-700 bg-zinc-950 cursor-pointer p-0.5"
+              />
+              <input
+                type="text"
+                id="bobina-input-hex-text"
+                oninput="syncBobinaHexText(this.value)"
+                placeholder="#00ae42"
+                pattern="^#([A-Fa-f0-9]{6})$"
+                class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono text-xs uppercase focus:outline-none focus:border-bambu-500"
+              />
+            </div>
+            <!-- Quick Palettes -->
+            <div class="flex items-center gap-2 mt-2">
+              <span class="text-[10px] text-zinc-500">Paleta rápida:</span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <button type="button" onclick="setBobinaHexPreset('#18181b')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #18181b;" title="Negro"></button>
+                <button type="button" onclick="setBobinaHexPreset('#f4f4f5')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #f4f4f5;" title="Blanco"></button>
+                <button type="button" onclick="setBobinaHexPreset('#71717a')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #71717a;" title="Gris"></button>
+                <button type="button" onclick="setBobinaHexPreset('#00ae42')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #00ae42;" title="Verde Bambu"></button>
+                <button type="button" onclick="setBobinaHexPreset('#3b82f6')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #3b82f6;" title="Azul"></button>
+                <button type="button" onclick="setBobinaHexPreset('#ef4444')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #ef4444;" title="Rojo"></button>
+                <button type="button" onclick="setBobinaHexPreset('#eab308')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #eab308;" title="Amarillo / Oro"></button>
+                <button type="button" onclick="setBobinaHexPreset('#f97316')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #f97316;" title="Naranja"></button>
+                <button type="button" onclick="setBobinaHexPreset('#a855f7')" class="w-5 h-5 rounded-full border border-white/20 shadow-sm transition hover:scale-110" style="background-color: #a855f7;" title="Púrpura"></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Weights and Costs Grid -->
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Capacidad Total</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  id="bobina-input-peso-total"
+                  required
+                  min="100"
+                  max="5000"
+                  step="50"
+                  value="1000"
+                  oninput="updateModalCostPerGram()"
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[11px] font-mono">g</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Peso Disponible</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  id="bobina-input-peso-actual"
+                  required
+                  min="0"
+                  max="5000"
+                  step="10"
+                  value="1000"
+                  oninput="updateModalCostPerGram()"
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[11px] font-mono">g</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-zinc-400 font-medium mb-1">Costo Total ($)</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  id="bobina-input-costo"
+                  required
+                  min="1"
+                  value="22.00"
+                  oninput="updateModalCostPerGram()"
+                  class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-bambu-500"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[11px] font-mono">$</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Cost per Gram Live Banner -->
+          <div class="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-mono text-zinc-500 block">Costo Calculado por Gramo</span>
+              <span id="bobina-cost-per-gram-preview" class="text-sm font-bold font-mono text-emerald-400">$0.0220 / g</span>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] uppercase font-mono text-zinc-500 block">Valor en Stock Actual</span>
+              <span id="bobina-stock-value-preview" class="text-sm font-bold font-mono text-zinc-200">$22.00</span>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="pt-2 flex gap-3">
+            <button
+              type="button"
+              onclick="cerrarModalBobina()"
+              class="flex-1 px-4 py-2.5 rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-300 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              id="bobina-btn-submit"
+              class="flex-1 px-4 py-2.5 rounded-xl bg-bambu-500 hover:bg-bambu-600 text-zinc-950 font-bold shadow-lg shadow-bambu-500/20 transition flex items-center justify-center gap-1.5 active:scale-95"
+            >
+              <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+              <span id="bobina-btn-submit-text">Guardar Bobina</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: BALANZA DIGITAL DE TALLER (CALIBRACIÓN RÁPIDA DE STOCK) -->
+    <div id="modal-pesar-bobina" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
+              <i data-lucide="scale" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Balanza de Taller</h3>
+              <p class="text-xs text-zinc-400">Pesa tu bobina y actualiza el remanente al instante</p>
+            </div>
+          </div>
+          <button onclick="cerrarModalPesar()" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="form-pesar-bobina" onsubmit="guardarPesaje(event)" class="space-y-4 text-xs">
+          <input type="hidden" id="pesar-bobina-id" value="" />
+
+          <!-- Spool info card -->
+          <div id="pesar-spool-info" class="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 flex items-center gap-3">
+            <span id="pesar-spool-swatch" class="w-6 h-6 rounded-full border border-white/20 flex-shrink-0 shadow-inner"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span id="pesar-spool-marca" class="text-xs font-bold uppercase font-mono text-zinc-300"></span>
+                <span id="pesar-spool-material" class="text-xs font-bold text-white"></span>
+              </div>
+              <p id="pesar-spool-color" class="text-[11px] text-zinc-400 truncate"></p>
+            </div>
+            <div class="text-right font-mono text-[11px] text-zinc-400">
+              <span>Cap: </span>
+              <span id="pesar-spool-cap" class="text-white font-bold">1000g</span>
+            </div>
+          </div>
+
+          <!-- Helper tare note -->
+          <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-[11px] text-amber-300 flex items-start gap-2">
+            <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400"></i>
+            <span>
+              <strong>Tip de pesaje:</strong> Si colocas el carretel plástico completo en la balanza, recuerda restar la tara vacía (~200g a 250g según la marca) para ingresar el peso neto de plástico.
+            </span>
+          </div>
+
+          <!-- Weight Input -->
+          <div>
+            <label class="block text-zinc-400 font-medium mb-1">Peso Neto Restante (g)</label>
+            <div class="relative">
+              <input
+                type="number"
+                id="pesar-input-neto"
+                required
+                min="0"
+                max="5000"
+                step="5"
+                placeholder="Ej: 720"
+                oninput="updateWeighPreview(this.value)"
+                class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white font-mono text-lg font-bold focus:outline-none focus:border-bambu-500 transition"
+              />
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm font-semibold">gramos</span>
+            </div>
+          </div>
+
+          <!-- Live Result Preview -->
+          <div class="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 grid grid-cols-2 gap-2 text-center font-mono">
+            <div>
+              <span class="text-[10px] text-zinc-500 block uppercase">Nuevo Porcentaje</span>
+              <span id="pesar-preview-percent" class="text-sm font-bold text-emerald-400">--%</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-zinc-500 block uppercase">Nuevo Valor Stock</span>
+              <span id="pesar-preview-value" class="text-sm font-bold text-zinc-200">$--</span>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="pt-2 flex gap-3">
+            <button
+              type="button"
+              onclick="cerrarModalPesar()"
+              class="flex-1 px-4 py-2.5 rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-300 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="flex-1 px-4 py-2.5 rounded-xl bg-bambu-500 hover:bg-bambu-600 text-zinc-950 font-bold shadow-lg shadow-bambu-500/20 transition flex items-center justify-center gap-1.5 active:scale-95"
+            >
+              <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+              <span>Guardar Pesaje</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
 
   <!-- JAVASCRIPT STATE & CALCULATION LOGIC -->
@@ -1536,102 +1862,418 @@
     }
 
     // ==========================================
-    // TAB 1: INVENTORY RENDERING
+    // TAB 4: INVENTORY STATE & ABM LOGIC
     // ==========================================
+    let spoolSearchTerm = "";
+    let selectedMaterialFilter = "TODOS";
+
+    function handleSpoolSearch(term) {
+      spoolSearchTerm = term.trim().toLowerCase();
+      renderInventory();
+    }
+
+    function setMaterialFilter(material) {
+      selectedMaterialFilter = material;
+      renderInventory();
+    }
+
+    function renderMaterialFilterPills(uniqueMaterials) {
+      const pillsContainer = document.getElementById("spool-material-pills");
+      if (!pillsContainer) return;
+
+      const materials = ["TODOS", ...uniqueMaterials];
+      pillsContainer.innerHTML = "";
+
+      materials.forEach(mat => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const isActive = selectedMaterialFilter.toUpperCase() === mat.toUpperCase();
+        btn.className = `px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
+          isActive
+            ? "bg-bambu-500 text-zinc-950 shadow-md shadow-bambu-500/20"
+            : "bg-zinc-800/80 text-zinc-400 hover:text-white hover:bg-zinc-700/80"
+        }`;
+        btn.textContent = mat === "TODOS" ? "Todos" : mat;
+        btn.onclick = () => setMaterialFilter(mat);
+        pillsContainer.appendChild(btn);
+      });
+    }
+
     function renderInventory() {
       const grid = document.getElementById("spools-grid");
+      if (!grid) return;
       grid.innerHTML = "";
 
+      // Compute unique materials for pills
+      const rawMaterials = Array.from(new Set(bobinas.map(b => (b.material || "").trim()).filter(Boolean)));
+      renderMaterialFilterPills(rawMaterials);
+
+      // Filter spools
+      const filtered = bobinas.filter(b => {
+        const matchesSearch = !spoolSearchTerm || (
+          (b.marca && b.marca.toLowerCase().includes(spoolSearchTerm)) ||
+          (b.material && b.material.toLowerCase().includes(spoolSearchTerm)) ||
+          (b.color && b.color.toLowerCase().includes(spoolSearchTerm))
+        );
+        const matchesMat = selectedMaterialFilter === "TODOS" || (b.material && b.material.toUpperCase() === selectedMaterialFilter.toUpperCase());
+        return matchesSearch && matchesMat;
+      });
+
+      // Overall stats (calculated on all spools)
       let totalWeight = 0;
       let totalStockCapital = 0;
       let lowStockCount = 0;
 
       bobinas.forEach(b => {
-        const percent = Math.round((b.peso_actual_g / b.peso_total_g) * 100);
-        const costPerGram = b.costo_compra / b.peso_total_g;
+        const percent = Math.round((b.peso_actual_g / (b.peso_total_g || 1000)) * 100);
+        const costPerGram = b.costo_compra / (b.peso_total_g || 1000);
         const currentStockValue = b.peso_actual_g * costPerGram;
 
         totalWeight += b.peso_actual_g;
         totalStockCapital += currentStockValue;
-
-        // Visual alerts based on percentage
-        let progressColor = "bg-emerald-500";
-        let badgeBg = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-        let statusText = "Stock Óptimo";
-
-        if (percent < 20) {
-          progressColor = "bg-rose-500";
-          badgeBg = "bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse";
-          statusText = "¡Crítico! Reponer";
-          lowStockCount++;
-        } else if (percent < 50) {
-          progressColor = "bg-amber-500";
-          badgeBg = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-          statusText = "Stock Medio";
-        }
-
-        const card = document.createElement("div");
-        card.className = "bg-zinc-900/80 border border-zinc-800/80 hover:border-zinc-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-lg hover:shadow-xl group";
-
-        card.innerHTML = `
-          <div>
-            <!-- Header: Badges & Swatch -->
-            <div class="flex items-start justify-between">
-              <div class="flex items-center space-x-2">
-                <span class="w-4 h-4 rounded-full border border-white/20 shadow-inner flex-shrink-0" style="background-color: ${b.hex}"></span>
-                <span class="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">${b.marca}</span>
-              </div>
-              <span class="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full border ${badgeBg}">
-                ${statusText}
-              </span>
-            </div>
-
-            <!-- Material Title -->
-            <div class="mt-3">
-              <h3 class="text-base font-bold text-white group-hover:text-bambu-500 transition">${b.material}</h3>
-              <p class="text-xs text-zinc-400 flex items-center gap-1">
-                <span>Color:</span>
-                <span class="text-zinc-200 font-medium">${b.color}</span>
-              </p>
-            </div>
-
-            <!-- Progress Bar -->
-            <div class="mt-5 space-y-1.5">
-              <div class="flex justify-between text-xs font-mono">
-                <span class="text-zinc-400">Stock restante:</span>
-                <span class="font-bold text-white">${b.peso_actual_g}g <span class="text-zinc-500 font-normal">/ 1000g</span></span>
-              </div>
-              <div class="w-full h-2.5 bg-zinc-950 rounded-full overflow-hidden p-0.5 border border-zinc-800">
-                <div class="h-full rounded-full transition-all duration-500 ${progressColor}" style="width: ${percent}%"></div>
-              </div>
-              <div class="flex justify-between text-[11px] text-zinc-500 font-mono">
-                <span>${percent}% disponible</span>
-                <span>Restan aprox ${(b.peso_actual_g / 40).toFixed(0)} piezas chicas</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom Costing & Actions -->
-          <div class="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-xs">
-            <div>
-              <span class="text-[10px] text-zinc-500 block uppercase font-mono">Costo / Gramo</span>
-              <span class="font-mono font-bold text-emerald-400">$${costPerGram.toFixed(3)}</span>
-            </div>
-            <div class="text-right">
-              <span class="text-[10px] text-zinc-500 block uppercase font-mono">Valor Actual</span>
-              <span class="font-mono text-zinc-300">$${currentStockValue.toFixed(2)}</span>
-            </div>
-          </div>
-        `;
-        grid.appendChild(card);
+        if (percent < 20) lowStockCount++;
       });
 
+      // Update filtered count badge
+      const countEl = document.getElementById("spools-filtered-count");
+      if (countEl) {
+        countEl.textContent = `(${filtered.length} de ${bobinas.length} bobinas)`;
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center bg-zinc-900/40 border border-zinc-800/80 rounded-2xl">
+            <i data-lucide="disc" class="w-10 h-10 text-zinc-600 mx-auto mb-3"></i>
+            <p class="text-zinc-400 font-medium">No se encontraron bobinas con el filtro aplicado</p>
+            <p class="text-xs text-zinc-600 mt-1">Prueba cambiando el término de búsqueda o material</p>
+          </div>
+        `;
+        lucide.createIcons();
+      } else {
+        filtered.forEach(b => {
+          const capG = b.peso_total_g || 1000;
+          const percent = Math.min(100, Math.round((b.peso_actual_g / capG) * 100));
+          const costPerGram = b.costo_compra / capG;
+          const currentStockValue = b.peso_actual_g * costPerGram;
+
+          // Visual alerts based on percentage
+          let progressColor = "bg-emerald-500";
+          let badgeBg = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+          let statusText = "Stock Óptimo";
+
+          if (percent < 20) {
+            progressColor = "bg-rose-500";
+            badgeBg = "bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse";
+            statusText = "¡Crítico! Reponer";
+          } else if (percent < 50) {
+            progressColor = "bg-amber-500";
+            badgeBg = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+            statusText = "Stock Medio";
+          }
+
+          const card = document.createElement("div");
+          card.className = "bg-zinc-900/80 border border-zinc-800/80 hover:border-zinc-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-lg hover:shadow-xl group";
+
+          card.innerHTML = `
+            <div>
+              <!-- Header: Badges & Swatch -->
+              <div class="flex items-start justify-between">
+                <div class="flex items-center space-x-2">
+                  <span class="w-4 h-4 rounded-full border border-white/20 shadow-inner flex-shrink-0" style="background-color: ${b.hex || '#ffffff'}"></span>
+                  <span class="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">${b.marca}</span>
+                </div>
+                <span class="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full border ${badgeBg}">
+                  ${statusText}
+                </span>
+              </div>
+
+              <!-- Material Title -->
+              <div class="mt-3">
+                <h3 class="text-base font-bold text-white group-hover:text-bambu-500 transition">${b.material}</h3>
+                <p class="text-xs text-zinc-400 flex items-center gap-1">
+                  <span>Color:</span>
+                  <span class="text-zinc-200 font-medium">${b.color}</span>
+                </p>
+              </div>
+
+              <!-- Progress Bar -->
+              <div class="mt-5 space-y-1.5">
+                <div class="flex justify-between text-xs font-mono">
+                  <span class="text-zinc-400">Stock restante:</span>
+                  <span class="font-bold text-white">${b.peso_actual_g}g <span class="text-zinc-500 font-normal">/ ${capG}g</span></span>
+                </div>
+                <div class="w-full h-2.5 bg-zinc-950 rounded-full overflow-hidden p-0.5 border border-zinc-800">
+                  <div class="h-full rounded-full transition-all duration-500 ${progressColor}" style="width: ${percent}%"></div>
+                </div>
+                <div class="flex justify-between text-[11px] text-zinc-500 font-mono">
+                  <span>${percent}% disponible</span>
+                  <span>Restan aprox ${(b.peso_actual_g / 40).toFixed(0)} piezas chicas</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Costing & ABM Action Footer -->
+            <div class="mt-5 space-y-3 pt-4 border-t border-zinc-800/80">
+              <div class="flex items-center justify-between text-xs">
+                <div>
+                  <span class="text-[10px] text-zinc-500 block uppercase font-mono">Costo / Gramo</span>
+                  <span class="font-mono font-bold text-emerald-400">$${costPerGram.toFixed(4)}</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] text-zinc-500 block uppercase font-mono">Valor Actual</span>
+                  <span class="font-mono text-zinc-300">$${currentStockValue.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <!-- ABM Action Buttons: Pesar, Editar, Eliminar -->
+              <div class="grid grid-cols-12 gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onclick="abrirModalPesarBobina(${b.id})"
+                  class="col-span-6 flex items-center justify-center gap-1 py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold transition active:scale-95"
+                  title="Calibrar por pesaje en balanza"
+                >
+                  <i data-lucide="scale" class="w-3.5 h-3.5"></i>
+                  <span>Pesar</span>
+                </button>
+                <button
+                  type="button"
+                  onclick="abrirModalEditarBobina(${b.id})"
+                  class="col-span-4 flex items-center justify-center gap-1 py-1.5 px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition active:scale-95"
+                  title="Editar parámetros"
+                >
+                  <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                  <span>Editar</span>
+                </button>
+                <button
+                  type="button"
+                  onclick="eliminarBobina(${b.id})"
+                  class="col-span-2 flex items-center justify-center py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs transition active:scale-95"
+                  title="Eliminar bobina"
+                >
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+        lucide.createIcons();
+      }
+
       // Update Header Stats
-      document.getElementById("stat-total-spools").textContent = bobinas.length;
-      document.getElementById("badge-total-spools").textContent = bobinas.length;
-      document.getElementById("stat-total-weight").textContent = totalWeight.toLocaleString();
-      document.getElementById("stat-total-capital").textContent = `$${totalStockCapital.toFixed(2)}`;
-      document.getElementById("stat-low-stock-count").textContent = lowStockCount;
+      const statTotalSpools = document.getElementById("stat-total-spools");
+      if (statTotalSpools) statTotalSpools.textContent = bobinas.length;
+      const badgeTotalSpools = document.getElementById("badge-total-spools");
+      if (badgeTotalSpools) badgeTotalSpools.textContent = bobinas.length;
+      const statTotalWeight = document.getElementById("stat-total-weight");
+      if (statTotalWeight) statTotalWeight.textContent = totalWeight.toLocaleString();
+      const statTotalCapital = document.getElementById("stat-total-capital");
+      if (statTotalCapital) statTotalCapital.textContent = `$${totalStockCapital.toFixed(2)}`;
+      const statLowStock = document.getElementById("stat-low-stock-count");
+      if (statLowStock) statLowStock.textContent = lowStockCount;
+    }
+
+    // ==========================================
+    // ABM SPOOL MODAL CONTROLLERS
+    // ==========================================
+    function abrirModalNuevaBobina() {
+      document.getElementById("bobina-form-id").value = "";
+      document.getElementById("modal-bobina-titulo").textContent = "Nueva Bobina de Filamento";
+      document.getElementById("bobina-btn-submit-text").textContent = "Registrar Bobina";
+
+      document.getElementById("bobina-input-marca").value = "";
+      document.getElementById("bobina-input-material").value = "PLA+";
+      document.getElementById("bobina-input-color").value = "";
+      document.getElementById("bobina-input-hex-color").value = "#00ae42";
+      document.getElementById("bobina-input-hex-text").value = "#00ae42";
+      document.getElementById("bobina-input-peso-total").value = "1000";
+      document.getElementById("bobina-input-peso-actual").value = "1000";
+      document.getElementById("bobina-input-costo").value = "22.00";
+
+      updateModalCostPerGram();
+      document.getElementById("modal-bobina").classList.remove("hidden");
+    }
+
+    function abrirModalEditarBobina(id) {
+      const spool = bobinas.find(b => b.id === id);
+      if (!spool) return;
+
+      document.getElementById("bobina-form-id").value = spool.id;
+      document.getElementById("modal-bobina-titulo").textContent = `Editar Bobina: ${spool.marca} ${spool.material}`;
+      document.getElementById("bobina-btn-submit-text").textContent = "Guardar Cambios";
+
+      document.getElementById("bobina-input-marca").value = spool.marca || "";
+      document.getElementById("bobina-input-material").value = spool.material || "";
+      document.getElementById("bobina-input-color").value = spool.color || "";
+      const hex = spool.hex || "#00ae42";
+      document.getElementById("bobina-input-hex-color").value = hex;
+      document.getElementById("bobina-input-hex-text").value = hex;
+      document.getElementById("bobina-input-peso-total").value = spool.peso_total_g || 1000;
+      document.getElementById("bobina-input-peso-actual").value = spool.peso_actual_g || 0;
+      document.getElementById("bobina-input-costo").value = (spool.costo_compra || 0).toFixed(2);
+
+      updateModalCostPerGram();
+      document.getElementById("modal-bobina").classList.remove("hidden");
+    }
+
+    function cerrarModalBobina() {
+      document.getElementById("modal-bobina").classList.add("hidden");
+    }
+
+    function setBobinaMarcaPreset(brand) {
+      document.getElementById("bobina-input-marca").value = brand;
+    }
+
+    function setBobinaMaterialPreset(mat) {
+      document.getElementById("bobina-input-material").value = mat;
+    }
+
+    function setBobinaHexPreset(hex) {
+      document.getElementById("bobina-input-hex-color").value = hex;
+      document.getElementById("bobina-input-hex-text").value = hex;
+    }
+
+    function syncBobinaHexPicker(val) {
+      document.getElementById("bobina-input-hex-text").value = val;
+    }
+
+    function syncBobinaHexText(val) {
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+        document.getElementById("bobina-input-hex-color").value = val;
+      }
+    }
+
+    function updateModalCostPerGram() {
+      const totalG = parseFloat(document.getElementById("bobina-input-peso-total").value) || 1000;
+      const actualG = parseFloat(document.getElementById("bobina-input-peso-actual").value) || 0;
+      const costo = parseFloat(document.getElementById("bobina-input-costo").value) || 0;
+
+      const cpg = totalG > 0 ? costo / totalG : 0;
+      const val = actualG * cpg;
+
+      document.getElementById("bobina-cost-per-gram-preview").textContent = `$${cpg.toFixed(4)} / g`;
+      document.getElementById("bobina-stock-value-preview").textContent = `$${val.toFixed(2)}`;
+    }
+
+    function guardarBobina(e) {
+      e.preventDefault();
+      const formId = document.getElementById("bobina-form-id").value;
+      const marca = document.getElementById("bobina-input-marca").value.trim();
+      const material = document.getElementById("bobina-input-material").value.trim();
+      const color = document.getElementById("bobina-input-color").value.trim();
+      const hex = document.getElementById("bobina-input-hex-text").value.trim() || "#00ae42";
+      const peso_total_g = parseFloat(document.getElementById("bobina-input-peso-total").value) || 1000;
+      const peso_actual_g = parseFloat(document.getElementById("bobina-input-peso-actual").value) || 0;
+      const costo_compra = parseFloat(document.getElementById("bobina-input-costo").value) || 0;
+
+      if (formId) {
+        // Edit existing
+        const idx = bobinas.findIndex(b => String(b.id) === String(formId));
+        if (idx !== -1) {
+          bobinas[idx] = {
+            ...bobinas[idx],
+            marca,
+            material,
+            color,
+            hex,
+            peso_total_g,
+            peso_actual_g,
+            costo_compra
+          };
+        }
+      } else {
+        // Create new
+        const newId = bobinas.length > 0 ? Math.max(...bobinas.map(b => b.id || 0)) + 1 : 1;
+        bobinas.push({
+          id: newId,
+          marca,
+          material,
+          color,
+          hex,
+          peso_total_g,
+          peso_actual_g,
+          costo_compra
+        });
+      }
+
+      cerrarModalBobina();
+      renderInventory();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      calculateAll();
+    }
+
+    function eliminarBobina(id) {
+      const spool = bobinas.find(b => b.id === id);
+      if (!spool) return;
+
+      const confirmed = confirm(`¿Estás seguro de que deseas eliminar la bobina "${spool.marca} ${spool.material} (${spool.color})"?`);
+      if (!confirmed) return;
+
+      bobinas = bobinas.filter(b => b.id !== id);
+      renderInventory();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      calculateAll();
+    }
+
+    // ==========================================
+    // BALANZA DIGITAL DE TALLER (PESAJE RÁPIDO)
+    // ==========================================
+    let currentWeighSpool = null;
+
+    function abrirModalPesarBobina(id) {
+      const spool = bobinas.find(b => b.id === id);
+      if (!spool) return;
+      currentWeighSpool = spool;
+
+      document.getElementById("pesar-bobina-id").value = spool.id;
+      document.getElementById("pesar-spool-swatch").style.backgroundColor = spool.hex || "#fff";
+      document.getElementById("pesar-spool-marca").textContent = spool.marca || "";
+      document.getElementById("pesar-spool-material").textContent = spool.material || "";
+      document.getElementById("pesar-spool-color").textContent = `Color: ${spool.color || ""}`;
+      document.getElementById("pesar-spool-cap").textContent = `${spool.peso_total_g || 1000}g`;
+
+      const inputNeto = document.getElementById("pesar-input-neto");
+      inputNeto.value = spool.peso_actual_g || 0;
+      updateWeighPreview(inputNeto.value);
+
+      document.getElementById("modal-pesar-bobina").classList.remove("hidden");
+    }
+
+    function cerrarModalPesar() {
+      document.getElementById("modal-pesar-bobina").classList.add("hidden");
+      currentWeighSpool = null;
+    }
+
+    function updateWeighPreview(val) {
+      if (!currentWeighSpool) return;
+      const net = parseFloat(val) || 0;
+      const cap = currentWeighSpool.peso_total_g || 1000;
+      const pct = Math.min(100, Math.round((net / cap) * 100));
+      const cpg = (currentWeighSpool.costo_compra || 0) / cap;
+      const stockVal = net * cpg;
+
+      document.getElementById("pesar-preview-percent").textContent = `${pct}%`;
+      document.getElementById("pesar-preview-value").textContent = `$${stockVal.toFixed(2)}`;
+    }
+
+    function guardarPesaje(e) {
+      e.preventDefault();
+      if (!currentWeighSpool) return;
+      const newWeight = parseFloat(document.getElementById("pesar-input-neto").value) || 0;
+
+      const idx = bobinas.findIndex(b => b.id === currentWeighSpool.id);
+      if (idx !== -1) {
+        bobinas[idx].peso_actual_g = newWeight;
+      }
+
+      cerrarModalPesar();
+      renderInventory();
+      initSpoolsDropdown();
+      initModalDropdowns();
+      calculateAll();
     }
 
     // ==========================================

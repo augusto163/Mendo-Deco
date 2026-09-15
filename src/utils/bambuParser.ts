@@ -234,3 +234,34 @@ function parseGcodeFallback(fileName: string, gcode: string): BambuSliceMetadata
     singlePlateIndex: isSingle ? plateIndex : undefined,
   };
 }
+
+/**
+ * Encuentra la bobina de stock más adecuada para un filamento detectado en el .3mf
+ */
+export function matchFilamentToSpool<T extends { id: number; material: string; color: string; hex: string; peso_actual_g: number }>(
+  filament: BambuFilament,
+  spools: T[]
+): T | undefined {
+  if (!spools || spools.length === 0) return undefined;
+
+  // 1. Coincidencia exacta por código HEX
+  const exactHex = spools.find(
+    (s) => s.hex.toLowerCase() === filament.color.toLowerCase() && s.peso_actual_g > 0
+  );
+  if (exactHex) return exactHex;
+
+  // 2. Coincidencia por material
+  const filType = filament.type.toLowerCase().trim();
+  const sameMaterial = spools.filter(
+    (s) => s.material.toLowerCase().includes(filType) || filType.includes(s.material.toLowerCase())
+  );
+  if (sameMaterial.length > 0) {
+    const withStock = sameMaterial.find((s) => s.peso_actual_g >= filament.usedGrams);
+    return withStock || sameMaterial[0];
+  }
+
+  // 3. Fallback: primer bobina con stock suficiente
+  const fallbackWithStock = spools.find((s) => s.peso_actual_g >= filament.usedGrams);
+  return fallbackWithStock || spools[0];
+}
+

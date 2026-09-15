@@ -13,6 +13,7 @@ model Configuracion {
   costo_kwh               Float    @default(120.0)
   costo_hora_operador     Float    @default(2500.0)
   margen_ganancia_default Float    @default(40.0)
+  tasa_fallo_default      Float    @default(5.0)
   inversion_inicial       Float    @default(3226.0)
   updatedAt               DateTime @updatedAt
 }
@@ -25,18 +26,61 @@ model ActivoInversion {
   fecha     DateTime @default(now())
 }
 
+model Impresora {
+  id               Int                 @id @default(autoincrement())
+  nombre           String
+  modelo           String              @default("Bambu Lab P1S")
+  consumo_kw       Float               @default(0.28)
+  costo_maquina    Float               @default(950.0)
+  horas_vida_util  Int                 @default(8000)
+  horas_uso_actual Float               @default(0.0)
+  estado           String              @default("DISPONIBLE") // DISPONIBLE, IMPRIMIENDO, MANTENIMIENTO, INACTIVA
+  trabajos         TrabajoProduccion[]
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+}
+
 model BobinaFilamento {
-  id             Int      @id @default(autoincrement())
-  marca          String
-  material       String
-  color_nombre   String
-  color_hex      String
-  peso_inicial_g Float    @default(1000.0)
-  peso_actual_g  Float
-  costo_kg       Float
-  costo_gramo    Float
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  id                 Int               @id @default(autoincrement())
+  marca              String
+  material           String
+  color_nombre       String
+  color_hex          String
+  peso_inicial_g     Float             @default(1000.0)
+  peso_actual_g      Float
+  costo_kg           Float
+  costo_gramo        Float
+  estado             String            @default("EN_USO") // EN_USO, AGOTADA, DESCARTADA
+  ubicacion_slot_ams String?
+  materiales_usados  TrabajoMaterial[]
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+}
+
+model Cliente {
+  id         Int       @id @default(autoincrement())
+  nombre     String
+  telefono   String?
+  email      String?
+  empresa    String?
+  notas      String?
+  pedidos    Pedido[]
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+}
+
+model Pedido {
+  id                     Int                 @id @default(autoincrement())
+  codigo_pedido          String              @unique
+  clienteId              Int?
+  cliente                Cliente?            @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  estado                 String              @default("PENDIENTE") // PENDIENTE, EN_PROCESO, LISTO, ENTREGADO, CANCELADO
+  precio_total           Float               @default(0.0)
+  costo_total            Float               @default(0.0)
+  adelanto_pago          Float               @default(0.0)
+  fecha_creacion         DateTime            @default(now())
+  fecha_entrega_estimada DateTime?
+  trabajos               TrabajoProduccion[]
 }
 
 enum EstadoTrabajo {
@@ -44,6 +88,7 @@ enum EstadoTrabajo {
   EN_PROCESO
   COMPLETADO
   CANCELADO
+  FALLIDO
 }
 
 enum PrioridadTrabajo {
@@ -53,18 +98,23 @@ enum PrioridadTrabajo {
 }
 
 model TrabajoProduccion {
-  id                  Int              @id @default(autoincrement())
-  codigo_orden        String           @unique
+  id                  Int                 @id @default(autoincrement())
+  codigo_orden        String              @unique
   nombre_archivo      String
-  cliente             String
+  pedidoId            Int?
+  pedido              Pedido?             @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  impresoraId         Int?
+  impresora           Impresora?          @relation(fields: [impresoraId], references: [id], onDelete: SetNull)
+  cliente             String              @default("Cliente Particular")
   cliente_telefono    String?
-  material            String
-  color               String
+  material            String              @default("PLA+")
+  color               String              @default("Varios")
   color_hex           String?
   impresora_asignada  String?
-  estado              EstadoTrabajo    @default(EN_ESPERA)
-  prioridad           PrioridadTrabajo @default(MEDIA)
+  estado              EstadoTrabajo       @default(EN_ESPERA)
+  prioridad           PrioridadTrabajo    @default(MEDIA)
   tiempo_minutos      Int
+  tiempo_operador_min Int                 @default(15)
   gramos_filamento    Float
   costo_energia       Float
   costo_operador      Float
@@ -74,7 +124,22 @@ model TrabajoProduccion {
   precio_venta        Float
   ganancia_neta       Float
   margen_porcentaje   Float
-  progreso_porcentaje Int              @default(0)
-  fecha_creacion      DateTime         @default(now())
+  progreso_porcentaje Int                 @default(0)
+  materiales_ams      TrabajoMaterial[]
+  fecha_creacion      DateTime            @default(now())
   fecha_completado    DateTime?
+}
+
+model TrabajoMaterial {
+  id              Int               @id @default(autoincrement())
+  trabajoId       Int
+  trabajo         TrabajoProduccion @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  bobinaId        Int?
+  bobina          BobinaFilamento?  @relation(fields: [bobinaId], references: [id], onDelete: SetNull)
+  slot_ams        Int?              @default(1)
+  color_nombre    String?
+  color_hex       String?
+  gramos_usados   Float
+  costo_calculado Float
+  created_at      DateTime          @default(now())
 }
