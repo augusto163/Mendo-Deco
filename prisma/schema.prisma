@@ -1,0 +1,80 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Configuracion {
+  id                      Int      @id @default(1)
+  costo_kwh               Float    @default(120.0)
+  costo_hora_operador     Float    @default(2500.0)
+  margen_ganancia_default Float    @default(40.0)
+  inversion_inicial       Float    @default(3226.0)
+  updatedAt               DateTime @updatedAt
+}
+
+model ActivoInversion {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  categoria String
+  costo     Float
+  fecha     DateTime @default(now())
+}
+
+model BobinaFilamento {
+  id             Int      @id @default(autoincrement())
+  marca          String
+  material       String
+  color_nombre   String
+  color_hex      String
+  peso_inicial_g Float    @default(1000.0)
+  peso_actual_g  Float
+  costo_kg       Float
+  costo_gramo    Float
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+}
+
+enum EstadoTrabajo {
+  EN_ESPERA
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+enum PrioridadTrabajo {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+model TrabajoProduccion {
+  id                  Int              @id @default(autoincrement())
+  codigo_orden        String           @unique
+  nombre_archivo      String
+  cliente             String
+  cliente_telefono    String?
+  material            String
+  color               String
+  color_hex           String?
+  impresora_asignada  String?
+  estado              EstadoTrabajo    @default(EN_ESPERA)
+  prioridad           PrioridadTrabajo @default(MEDIA)
+  tiempo_minutos      Int
+  gramos_filamento    Float
+  costo_energia       Float
+  costo_operador      Float
+  costo_filamento     Float
+  costo_amortizacion  Float
+  costo_total         Float
+  precio_venta        Float
+  ganancia_neta       Float
+  margen_porcentaje   Float
+  progreso_porcentaje Int              @default(0)
+  fecha_creacion      DateTime         @default(now())
+  fecha_completado    DateTime?
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Layers,
   Package,
@@ -400,6 +400,101 @@ export default function BambuFarmDashboard() {
   const [spools, setSpools] = useState<Bobina[]>(INITIAL_SPOOLS);
   const [inversiones, setInversiones] = useState<ActivoInversion[]>(INITIAL_INVERSION);
   const [trabajos, setTrabajos] = useState<Trabajo[]>(INITIAL_TRABAJOS);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // Sincronización en vivo con Base de Datos Supabase
+  useEffect(() => {
+    async function loadDataFromSupabase() {
+      try {
+        setIsSyncing(true);
+        // 1. Cargar Bobinas
+        const resFilamentos = await fetch("/api/filamentos");
+        const jsonFilamentos = await resFilamentos.json();
+        if (jsonFilamentos.success && jsonFilamentos.data?.length > 0) {
+          const dbSpools: Bobina[] = jsonFilamentos.data.map((b: any) => ({
+            id: b.id,
+            marca: b.marca,
+            material: b.material,
+            color: b.color_nombre,
+            hex: b.color_hex,
+            peso_total_g: b.peso_inicial_g,
+            peso_actual_g: b.peso_actual_g,
+            costo_compra: b.costo_kg,
+          }));
+          setSpools(dbSpools);
+        }
+
+        // 2. Cargar Finanzas y Activos
+        const resFinanzas = await fetch("/api/finanzas");
+        const jsonFinanzas = await resFinanzas.json();
+        if (jsonFinanzas.success) {
+          if (jsonFinanzas.data.activos?.length > 0) {
+            setInversiones(
+              jsonFinanzas.data.activos.map((a: any) => ({
+                id: a.id,
+                nombre: a.nombre,
+                costo: a.costo,
+                categoria: a.categoria?.toLowerCase() || "herramientas",
+                fecha: a.fecha ? a.fecha.split("T")[0] : "2026-09-14",
+              }))
+            );
+          }
+          if (jsonFinanzas.data.config) {
+            setConfig({
+              id: jsonFinanzas.data.config.id,
+              costo_kwh: jsonFinanzas.data.config.costo_kwh,
+              costo_hora_operador: jsonFinanzas.data.config.costo_hora_operador,
+              margen_ganancia_default: jsonFinanzas.data.config.margen_ganancia_default,
+            });
+          }
+        }
+
+        // 3. Cargar Trabajos
+        const resTrabajos = await fetch("/api/trabajos");
+        const jsonTrabajos = await resTrabajos.json();
+        if (jsonTrabajos.success && jsonTrabajos.data?.length > 0) {
+          const dbTrabajos: Trabajo[] = jsonTrabajos.data.map((t: any) => {
+            let printerId = 1;
+            if (t.impresora_asignada?.includes("X1")) printerId = 2;
+            else if (t.impresora_asignada?.includes("A1")) printerId = 3;
+
+            let estado: "ejecucion" | "espera" | "completado" = "espera";
+            if (t.estado === "EN_PROCESO") estado = "ejecucion";
+            else if (t.estado === "COMPLETADO") estado = "completado";
+
+            return {
+              id: t.id,
+              codigo: t.codigo_orden,
+              nombre: t.nombre_archivo,
+              cliente: t.cliente,
+              impresoraId: printerId,
+              bobinaId: 1,
+              pesoGramos: t.gramos_filamento,
+              tiempoMinutos: t.tiempo_minutos,
+              tiempoTranscurridoMin: Math.round((t.tiempo_minutos * (t.progreso_porcentaje || 0)) / 100),
+              estado,
+              costoFilamento: t.costo_filamento,
+              costoElectricidad: t.costo_energia,
+              costoAmortizacion: t.costo_amortizacion,
+              costoManoObra: t.costo_operador,
+              costoTotal: t.costo_total,
+              precioVenta: t.precio_venta,
+              gananciaNeta: t.ganancia_neta,
+              fecha: t.fecha_creacion ? t.fecha_creacion.split("T")[0] : "2026-09-14",
+              prioridad: (t.prioridad || "media").toLowerCase() as "alta" | "media" | "baja",
+            };
+          });
+          setTrabajos(dbTrabajos);
+        }
+      } catch (err) {
+        console.warn("Conexión con Supabase no disponible en este cliente, usando caché local.", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+
+    loadDataFromSupabase();
+  }, []);
 
   // Form parameters in Cotizador
   const [selectedPrinterId, setSelectedPrinterId] = useState<number>(1);
@@ -655,6 +750,18 @@ export default function BambuFarmDashboard() {
     );
     setToastMessage(`✅ ¡Trabajo "${job.nombre}" completado! Ganancia sumada: +$${job.gananciaNeta.toFixed(2)}`);
     setTimeout(() => setToastMessage(null), 4000);
+
+    // Persistir en Supabase
+    fetch("/api/trabajos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: jobId,
+        estado: "COMPLETADO",
+        progreso_porcentaje: 100,
+        fecha_completado: new Date().toISOString(),
+      }),
+    }).catch((err) => console.warn("Error persistiendo completado en Supabase:", err));
   };
 
   const handleCancelarTrabajo = (jobId: number) => {
@@ -662,6 +769,9 @@ export default function BambuFarmDashboard() {
     if (!job) return;
     if (confirm(`¿Cancelar el trabajo "${job.nombre}"?`)) {
       setTrabajos((prev) => prev.filter((t) => t.id !== jobId));
+      fetch(`/api/trabajos?id=${jobId}`, { method: "DELETE" }).catch((err) =>
+        console.warn("Error eliminando trabajo en Supabase:", err)
+      );
     }
   };
 
@@ -703,6 +813,46 @@ export default function BambuFarmDashboard() {
     setTrabajos((prev) => [newJob, ...prev]);
     setToastMessage(`✓ ¡Pedido registrado! Agregado a la Lista de Espera.`);
     setTimeout(() => setToastMessage(null), 4000);
+
+    // Persistir trabajo en Supabase
+    fetch("/api/trabajos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        codigo_orden: newJob.codigo,
+        nombre_archivo: newJob.nombre,
+        cliente: newJob.cliente,
+        impresora_asignada: currentPrinter.nombre,
+        material: currentSpool.material,
+        color: currentSpool.color,
+        color_hex: currentSpool.hex,
+        estado: "EN_ESPERA",
+        prioridad: "ALTA",
+        tiempo_minutos: newJob.tiempoMinutos,
+        gramos_filamento: newJob.pesoGramos,
+        costo_energia: newJob.costoElectricidad,
+        costo_operador: newJob.costoManoObra,
+        costo_filamento: newJob.costoFilamento,
+        costo_amortizacion: newJob.costoAmortizacion,
+        costo_total: newJob.costoTotal,
+        precio_venta: newJob.precioVenta,
+        gananciaNeta: newJob.gananciaNeta,
+        margen_porcentaje: marginPercent,
+      }),
+    }).catch((err) => console.warn("Error guardando orden en Supabase:", err));
+
+    // Descontar stock en Supabase
+    const updatedSpool = spools.find((s) => s.id === selectedSpoolId);
+    if (updatedSpool) {
+      fetch("/api/filamentos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedSpoolId,
+          peso_actual_g: Math.max(0, updatedSpool.peso_actual_g - grams),
+        }),
+      }).catch((err) => console.warn("Error descontando bobina en Supabase:", err));
+    }
   };
 
   const handleGuardarNuevoTrabajo = (e: React.FormEvent) => {
@@ -746,6 +896,33 @@ export default function BambuFarmDashboard() {
     setNewJobClient("");
     setToastMessage(`✓ Trabajo "${newJob.nombre}" agregado a la cola.`);
     setTimeout(() => setToastMessage(null), 4000);
+
+    // Persistir nuevo trabajo en Supabase
+    fetch("/api/trabajos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        codigo_orden: newJob.codigo,
+        nombre_archivo: newJob.nombre,
+        cliente: newJob.cliente,
+        impresora_asignada: printer.nombre,
+        material: spool.material,
+        color: spool.color,
+        color_hex: spool.hex,
+        estado: "EN_ESPERA",
+        prioridad: newJobPriority.toUpperCase(),
+        tiempo_minutos: newJob.tiempoMinutos,
+        gramos_filamento: newJob.pesoGramos,
+        costo_energia: costElec,
+        costo_operador: costLabor,
+        costo_filamento: costFilament,
+        costo_amortizacion: costMach,
+        costo_total: totalCost,
+        precio_venta: suggestedPrice,
+        ganancia_neta: netProfit,
+        margen_porcentaje: newJobMargin,
+      }),
+    }).catch((err) => console.warn("Error guardando trabajo en Supabase:", err));
   };
 
   const handleGuardarNuevoActivo = (e: React.FormEvent) => {
@@ -762,6 +939,17 @@ export default function BambuFarmDashboard() {
     setNewAssetName("");
     setToastMessage(`✓ Activo "${item.nombre}" ($${item.costo.toFixed(2)}) sumado a la inversión inicial.`);
     setTimeout(() => setToastMessage(null), 4000);
+
+    // Persistir en Supabase
+    fetch("/api/finanzas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: newAssetName,
+        categoria: newAssetCategory,
+        costo: newAssetCost,
+      }),
+    }).catch((err) => console.warn("Error guardando activo en Supabase:", err));
   };
 
   const handleResetData = () => {
@@ -796,11 +984,12 @@ export default function BambuFarmDashboard() {
                 <span className="font-extrabold tracking-tight text-lg text-white">
                   BambuFarm<span className="text-emerald-500">.OS</span>
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-semibold">
-                  Demo Granja 3D
+                <span className="px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  {isSyncing ? "Sincronizando..." : "Supabase Cloud DB"}
                 </span>
               </div>
-              <p className="text-xs text-zinc-400">Control de Flota, Finanzas & Cotizador Bambu Studio</p>
+              <p className="text-xs text-zinc-400">MendoDeco • Control de Flota, Finanzas & Cotizador Bambu Studio</p>
             </div>
           </div>
 

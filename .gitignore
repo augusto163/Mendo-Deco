@@ -22,3 +22,9 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# agent & editor configs
+.agents/
+.claude/
+.cursor/
+.devin/
