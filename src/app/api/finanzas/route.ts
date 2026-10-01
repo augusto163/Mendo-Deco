@@ -21,19 +21,60 @@ export async function GET() {
       orderBy: { fecha: "desc" },
     });
 
-    const trabajosCompletados = await prisma.trabajoProduccion.findMany({
-      where: { estado: "COMPLETADO" },
+    const trabajosFinalizados = await prisma.trabajoProduccion.findMany({
+      where: { estado: { in: ["COMPLETADO", "FALLIDO"] } },
     });
 
-    const facturacionTotal = trabajosCompletados.reduce((acc, t) => acc + t.precio_venta, 0);
-    const costoOperativoTotal = trabajosCompletados.reduce((acc, t) => acc + t.costo_total, 0);
+    const trabajosCompletados = trabajosFinalizados.filter((t) => t.estado === "COMPLETADO");
+    const trabajosFallidos = trabajosFinalizados.filter((t) => t.estado === "FALLIDO");
+
+    // Facturación real basada exclusivamente en ventas registradas/entregadas
+    const facturacionTotal = trabajosCompletados.reduce((acc, t) => {
+      const cant = t.cantidad || 1;
+      const precioUnitario = t.precio_venta / cant;
+      if (t.unidades_vendidas > 0) {
+        return acc + precioUnitario * t.unidades_vendidas;
+      }
+      if (t.estado_venta === "VENDIDO") {
+        return acc + t.precio_venta;
+      }
+      return acc;
+    }, 0);
+
+    // Costo operativo total incurrido (material y energía consumidos en piezas terminadas + piezas fallidas)
+    const costoOperativoTotal = trabajosFinalizados.reduce((acc, t) => acc + t.costo_total, 0);
     const gananciaNetaTotal = facturacionTotal - costoOperativoTotal;
 
-    const costoFilamentoTotal = trabajosCompletados.reduce((acc, t) => acc + t.costo_filamento, 0);
-    const costoEnergiaTotal = trabajosCompletados.reduce((acc, t) => acc + t.costo_energia, 0);
-    const costoAmortizacionTotal = trabajosCompletados.reduce((acc, t) => acc + t.costo_amortizacion, 0);
-    const costoOperadorTotal = trabajosCompletados.reduce((acc, t) => acc + t.costo_operador, 0);
-    const gramosTotales = trabajosCompletados.reduce((acc, t) => acc + t.gramos_filamento, 0);
+    // Desglose de costos
+    const costoFilamentoTotal = trabajosFinalizados.reduce((acc, t) => acc + t.costo_filamento, 0);
+    const costoEnergiaTotal = trabajosFinalizados.reduce((acc, t) => acc + t.costo_energia, 0);
+    const costoAmortizacionTotal = trabajosFinalizados.reduce((acc, t) => acc + t.costo_amortizacion, 0);
+    const costoOperadorTotal = trabajosFinalizados.reduce((acc, t) => acc + t.costo_operador, 0);
+
+    const gramosTotales = trabajosFinalizados.reduce((acc, t) => {
+      if (t.estado === "FALLIDO") return acc + (t.desperdicio_gramos || 0);
+      return acc + t.gramos_filamento;
+    }, 0);
+
+    // Costo por merma (pérdidas en impresiones fallidas)
+    const costoMermaTotal = trabajosFallidos.reduce((acc, t) => acc + t.costo_total, 0);
+
+    // Valor de inventario en productos terminados que aún están en stock (sin vender)
+    const valorInventarioStock = trabajosCompletados.reduce((acc, t) => {
+      const cant = t.cantidad || 1;
+      const costoUnitario = t.costo_total / cant;
+      const stock = t.unidades_en_stock > 0 ? t.unidades_en_stock : (t.estado_venta !== "VENDIDO" ? cant : 0);
+      return acc + costoUnitario * stock;
+    }, 0);
+
+    const unidadesEnStockTotal = trabajosCompletados.reduce((acc, t) => {
+      const stock = t.unidades_en_stock > 0 ? t.unidades_en_stock : (t.estado_venta !== "VENDIDO" ? (t.cantidad || 1) : 0);
+      return acc + stock;
+    }, 0);
+
+    const ventasRegistradasCount = trabajosCompletados.filter(
+      (t) => t.unidades_vendidas > 0 || t.estado_venta === "VENDIDO"
+    ).length;
 
     const inversionActivos = activos.reduce((acc, a) => acc + a.costo, 0);
     const inversionTotal = inversionActivos > 0 ? inversionActivos : config.inversion_inicial;
@@ -59,6 +100,10 @@ export async function GET() {
           costoOperadorTotal,
           gramosTotales,
           trabajosCompletadosCount: trabajosCompletados.length,
+          valorInventarioStock,
+          costoMermaTotal,
+          unidadesEnStockTotal,
+          ventasRegistradasCount,
         },
       },
     });

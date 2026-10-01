@@ -30,6 +30,10 @@ interface ResumenCostosCardProps {
   stockDifference: number;
   onConfirmOrder: () => void;
   isSubmitting: boolean;
+  cantidad?: number;
+  unitCost?: number;
+  unitPrice?: number;
+  unitProfit?: number;
 }
 
 export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
@@ -48,6 +52,10 @@ export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
   stockDifference,
   onConfirmOrder,
   isSubmitting,
+  cantidad = 1,
+  unitCost = totalCost,
+  unitPrice = suggestedPrice,
+  unitProfit = netProfit,
 }) => {
   const profitMarginOnSale = suggestedPrice > 0 ? (netProfit / suggestedPrice) * 100 : 0;
 
@@ -55,10 +63,17 @@ export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
     <div className="bg-zinc-900/90 rounded-2xl p-6 border border-zinc-800 shadow-xl flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-emerald-400" />
-            Desglose Financiero & Cotización
-          </h3>
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-400" />
+              Desglose Financiero & Cotización
+            </h3>
+            {cantidad > 1 && (
+              <span className="text-[11px] text-amber-400 font-semibold block mt-0.5">
+                📦 Cotización para lote de {cantidad} unidades
+              </span>
+            )}
+          </div>
           <span className="text-xs px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
             Margen: +{marginPercent}%
           </span>
@@ -95,7 +110,14 @@ export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
           </div>
 
           <div className="flex items-center justify-between py-3 bg-zinc-950/40 px-3 rounded-xl border border-zinc-800/80 mt-2">
-            <span className="text-zinc-300 font-medium">Costo Total de Producción</span>
+            <div>
+              <span className="text-zinc-300 font-medium block">Costo Total de Producción</span>
+              {cantidad > 1 && (
+                <span className="text-[11px] text-zinc-400 font-mono">
+                  ${unitCost.toFixed(2)} por unidad
+                </span>
+              )}
+            </div>
             <span className="text-sm font-bold text-zinc-100">${totalCost.toFixed(2)}</span>
           </div>
         </div>
@@ -127,7 +149,16 @@ export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
         {/* Suggested Price & Net Profit Card */}
         <div className="mt-5 p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 to-zinc-900 border border-emerald-500/30">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-zinc-400">Precio Sugerido de Venta</span>
+            <div>
+              <span className="text-xs text-zinc-400 block">
+                {cantidad > 1 ? `Precio Total del Lote (x${cantidad} u.)` : "Precio Sugerido de Venta"}
+              </span>
+              {cantidad > 1 && (
+                <span className="text-xs text-emerald-400/90 font-mono font-bold">
+                  ${unitPrice.toFixed(2)} / unidad
+                </span>
+              )}
+            </div>
             <span className="text-2xl font-black text-emerald-400 tracking-tight">
               ${suggestedPrice.toFixed(2)}
             </span>
@@ -135,7 +166,7 @@ export const ResumenCostosCard: React.FC<ResumenCostosCardProps> = ({
           <div className="flex items-center justify-between text-xs pt-2 border-t border-emerald-500/20">
             <span className="text-zinc-400 flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              Ganancia Neta
+              Ganancia Neta {cantidad > 1 ? `Total (+${unitProfit.toFixed(2)}/u)` : ""}
             </span>
             <span className="font-bold text-emerald-300">
               +${netProfit.toFixed(2)} ({profitMarginOnSale.toFixed(0)}% s/ venta)

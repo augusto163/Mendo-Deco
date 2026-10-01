@@ -28,6 +28,8 @@ export async function POST(request: Request) {
 
     const impresoraId = body.impresoraId ? Number(body.impresoraId) : null;
     const estado = body.estado || "EN_ESPERA";
+    const cantidad = Math.max(1, Number(body.cantidad) || 1);
+    const tipoDestino = body.tipo_destino || (body.cliente && body.cliente !== "Cliente Particular" ? "CLIENTE" : "STOCK");
 
     const nuevoTrabajo = await prisma.trabajoProduccion.create({
       data: {
@@ -42,6 +44,11 @@ export async function POST(request: Request) {
         impresora_asignada: body.impresora_asignada || null,
         estado: estado,
         prioridad: body.prioridad || "MEDIA",
+        cantidad: cantidad,
+        tipo_destino: tipoDestino,
+        estado_venta: "PENDIENTE_VENTA",
+        unidades_en_stock: 0,
+        unidades_vendidas: 0,
         tiempo_minutos: Number(body.tiempo_minutos) || 60,
         tiempo_operador_min: Number(body.tiempo_operador_min) || 15,
         gramos_filamento: Number(body.gramos_filamento) || 50,
@@ -112,16 +119,145 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: "Trabajo no encontrado" }, { status: 404 });
     }
 
-    // Caso 1: Transición a COMPLETADO (Descontar bobinas + Liberar impresora + Contabilidad)
+    // Caso 1: Registrar Venta de Productos Terminados (Control de Ventas & Stock)
+    if (data.accion === "REGISTRAR_VENTA" || data.estado_venta === "VENDIDO") {
+      const stockDisponible = trabajoActual.unidades_en_stock > 0 ? trabajoActual.unidades_en_stock : trabajoActual.cantidad;
+      const cantAVender = Math.min(stockDisponible, Math.max(1, Number(data.unidades_a_vender) || stockDisponible));
+      const nuevoStock = Math.max(0, stockDisponible - cantAVender);
+      const nuevasVendidas = (trabajoActual.unidades_vendidas || 0) + cantAVender;
+      const nuevoEstadoVenta = nuevoStock === 0 ? "VENDIDO" : "EN_STOCK";
+
+      const ventaActualizada = await prisma.trabajoProduccion.update({
+        where: { id: jobId },
+        data: {
+          unidades_en_stock: nuevoStock,
+          unidades_vendidas: nuevasVendidas,
+          estado_venta: nuevoEstadoVenta,
+          fecha_venta: new Date(),
+        },
+        include: {
+          impresora: true,
+          materiales_ams: { include: { bobina: true } },
+        },
+      });
+
+      return NextResponse.json({ success: true, data: ventaActualizada });
+    }
+
+    // Caso 2: Transición a FALLIDO (Reportar falla, descontar solo desperdicio real y registrar merma)
+    if (data.estado === "FALLIDO" && trabajoActual.estado !== "FALLIDO") {
+      const resultFallo = await prisma.$transaction(async (tx) => {
+        const desperdicioGramos = Math.max(0, Number(data.desperdicio_gramos) || 0);
+        const progreso = Math.min(100, Math.max(1, Number(data.progreso_porcentaje) || 50));
+        const tiempoTranscurrido = Math.max(
+          1,
+          Number(data.tiempo_transcurrido_min) || Math.round((trabajoActual.tiempo_minutos * progreso) / 100)
+        );
+
+        const ratioMaterial =
+          trabajoActual.gramos_filamento > 0
+            ? Math.min(1, desperdicioGramos / trabajoActual.gramos_filamento)
+            : progreso / 100;
+        const ratioTiempo = Math.min(1, tiempoTranscurrido / (trabajoActual.tiempo_minutos || 1));
+
+        // 1. Descontar únicamente el material desperdiciado de las bobinas usadas
+        for (const mat of trabajoActual.materiales_ams) {
+          if (mat.bobinaId && mat.gramos_usados > 0) {
+            const bobina = await tx.bobinaFilamento.findUnique({ where: { id: mat.bobinaId } });
+            if (bobina) {
+              const gramosMerma = Math.round(mat.gramos_usados * ratioMaterial * 10) / 10;
+              const nuevoPeso = Math.max(0, bobina.peso_actual_g - gramosMerma);
+              await tx.bobinaFilamento.update({
+                where: { id: mat.bobinaId },
+                data: {
+                  peso_actual_g: nuevoPeso,
+                  estado: nuevoPeso <= 0 ? "AGOTADA" : bobina.estado,
+                },
+              });
+            }
+          }
+        }
+
+        if (trabajoActual.materiales_ams.length === 0 && data.bobinaId) {
+          const bId = Number(data.bobinaId);
+          const bobina = await tx.bobinaFilamento.findUnique({ where: { id: bId } });
+          if (bobina) {
+            const nuevoPeso = Math.max(0, bobina.peso_actual_g - desperdicioGramos);
+            await tx.bobinaFilamento.update({
+              where: { id: bId },
+              data: {
+                peso_actual_g: nuevoPeso,
+                estado: nuevoPeso <= 0 ? "AGOTADA" : bobina.estado,
+              },
+            });
+          }
+        }
+
+        // 2. Liberar impresora y sumar horas de máquina reales hasta el fallo
+        const impId = data.impresoraId ? Number(data.impresoraId) : trabajoActual.impresoraId;
+        if (impId) {
+          const impresora = await tx.impresora.findUnique({ where: { id: impId } });
+          if (impresora) {
+            const horasEfectivas = tiempoTranscurrido / 60;
+            await tx.impresora.update({
+              where: { id: impId },
+              data: {
+                horas_uso_actual: impresora.horas_uso_actual + horasEfectivas,
+                estado: "DISPONIBLE",
+              },
+            });
+          }
+        }
+
+        // 3. Recalcular costos reales de la pérdida / merma
+        const costoFilamentoPerdido = Math.round(trabajoActual.costo_filamento * ratioMaterial * 100) / 100;
+        const costoEnergiaPerdida = Math.round(trabajoActual.costo_energia * ratioTiempo * 100) / 100;
+        const costoAmortizacionPerdida = Math.round(trabajoActual.costo_amortizacion * ratioTiempo * 100) / 100;
+        const costoTotalPerdido = costoFilamentoPerdido + costoEnergiaPerdida + costoAmortizacionPerdida;
+
+        // 4. Actualizar trabajo a FALLIDO con valores de merma
+        const trabajoFallido = await tx.trabajoProduccion.update({
+          where: { id: jobId },
+          data: {
+            estado: "FALLIDO",
+            progreso_porcentaje: progreso,
+            desperdicio_gramos: desperdicioGramos,
+            motivo_fallo: data.motivo_fallo || "Falla durante impresión",
+            costo_filamento: costoFilamentoPerdido,
+            costo_energia: costoEnergiaPerdida,
+            costo_amortizacion: costoAmortizacionPerdida,
+            costo_total: costoTotalPerdido,
+            precio_venta: 0,
+            ganancia_neta: -costoTotalPerdido,
+            unidades_en_stock: 0,
+            unidades_vendidas: 0,
+            estado_venta: "CANCELADO",
+            fecha_completado: new Date(),
+          },
+          include: {
+            impresora: true,
+            materiales_ams: { include: { bobina: true } },
+          },
+        });
+
+        return trabajoFallido;
+      });
+
+      return NextResponse.json({ success: true, data: resultFallo });
+    }
+
+    // Caso 3: Transición a COMPLETADO (Descontar bobinas + Almacenar en Stock + Liberar impresora)
     if (data.estado === "COMPLETADO" && trabajoActual.estado !== "COMPLETADO") {
       const result = await prisma.$transaction(async (tx) => {
-        // 1. Actualizar estado del trabajo a COMPLETADO
+        // 1. Actualizar estado del trabajo a COMPLETADO y cargar en stock de productos
         const trabajoActualizado = await tx.trabajoProduccion.update({
           where: { id: jobId },
           data: {
             estado: "COMPLETADO",
             progreso_porcentaje: 100,
             fecha_completado: new Date(),
+            unidades_en_stock: trabajoActual.cantidad,
+            estado_venta: trabajoActual.tipo_destino === "STOCK" ? "EN_STOCK" : "PENDIENTE_VENTA",
             ...(data.impresoraId && { impresoraId: Number(data.impresoraId) }),
           },
           include: {
@@ -185,7 +321,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, data: result });
     }
 
-    // Caso 2: Transición a EN_PROCESO (Marcar impresora como ocupada)
+    // Caso 4: Transición a EN_PROCESO (Marcar impresora como ocupada)
     if (data.estado === "EN_PROCESO") {
       const impId = data.impresoraId ? Number(data.impresoraId) : trabajoActual.impresoraId;
       if (impId) {
@@ -200,6 +336,13 @@ export async function PATCH(request: Request) {
     const updatePayload: any = {};
     if (data.estado) updatePayload.estado = data.estado;
     if (data.prioridad) updatePayload.prioridad = data.prioridad;
+    if (data.cantidad !== undefined) updatePayload.cantidad = Number(data.cantidad);
+    if (data.tipo_destino) updatePayload.tipo_destino = data.tipo_destino;
+    if (data.estado_venta) updatePayload.estado_venta = data.estado_venta;
+    if (data.unidades_en_stock !== undefined) updatePayload.unidades_en_stock = Number(data.unidades_en_stock);
+    if (data.unidades_vendidas !== undefined) updatePayload.unidades_vendidas = Number(data.unidades_vendidas);
+    if (data.desperdicio_gramos !== undefined) updatePayload.desperdicio_gramos = Number(data.desperdicio_gramos);
+    if (data.motivo_fallo !== undefined) updatePayload.motivo_fallo = data.motivo_fallo;
     if (data.progreso_porcentaje !== undefined) updatePayload.progreso_porcentaje = Number(data.progreso_porcentaje);
     if (data.impresoraId !== undefined) updatePayload.impresoraId = data.impresoraId ? Number(data.impresoraId) : null;
     if (data.impresora_asignada !== undefined) updatePayload.impresora_asignada = data.impresora_asignada;

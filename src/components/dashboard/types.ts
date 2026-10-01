@@ -72,7 +72,7 @@ export interface Trabajo {
   pesoGramos: number;
   tiempoMinutos: number;
   tiempoTranscurridoMin: number;
-  estado: "ejecucion" | "espera" | "completado" | "cancelado";
+  estado: "ejecucion" | "espera" | "completado" | "cancelado" | "fallido";
   costoFilamento: number;
   costoElectricidad: number;
   costoAmortizacion: number;
@@ -84,6 +84,14 @@ export interface Trabajo {
   progresoPorcentaje: number;
   fecha: string;
   prioridad: "alta" | "media" | "baja";
+  cantidad: number;
+  tipoDestino: "cliente" | "stock";
+  estadoVenta: "pendiente" | "en_stock" | "vendido";
+  fechaVenta?: string;
+  unidadesEnStock: number;
+  unidadesVendidas: number;
+  desperdicioGramos?: number;
+  motivoFallo?: string;
   materialesAms?: TrabajoMaterialAms[];
 }
 
@@ -109,4 +117,8 @@ export interface ContabilidadResumen {
   costoOperadorTotal: number;
   gramosTotales: number;
   trabajosCompletadosCount: number;
+  valorInventarioStock: number;
+  costoMermaTotal: number;
+  unidadesEnStockTotal: number;
+  ventasRegistradasCount: number;
 }

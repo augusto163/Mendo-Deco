@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Coins,
   Receipt,
+  PackageCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { ConfiguracionCostos, ActivoInversion, ContabilidadResumen, Trabajo } from "../types";
 import { InversionModal } from "./InversionModal";
@@ -70,24 +72,14 @@ export const FinanzasPanel: React.FC<FinanzasPanelProps> = ({
   return (
     <div className="space-y-6">
       {/* KPI Top Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
-          <span className="text-xs text-zinc-400 block mb-1">Facturación Total Cobrada</span>
+          <span className="text-xs text-zinc-400 block mb-1">Facturación Cobrada</span>
           <span className="text-2xl font-black text-white font-mono">
             ${contabilidad.facturacionTotal.toFixed(2)}
           </span>
           <span className="text-[11px] text-zinc-500 block mt-1">
-            {contabilidad.trabajosCompletadosCount} órdenes finalizadas
-          </span>
-        </div>
-
-        <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
-          <span className="text-xs text-zinc-400 block mb-1">Costo Operativo Incurrido</span>
-          <span className="text-2xl font-black text-amber-400 font-mono">
-            ${contabilidad.costoOperativoTotal.toFixed(2)}
-          </span>
-          <span className="text-[11px] text-zinc-500 block mt-1">
-            Material, luz, desgaste y operador
+            {contabilidad.ventasRegistradasCount || 0} ventas registradas
           </span>
         </div>
 
@@ -97,17 +89,51 @@ export const FinanzasPanel: React.FC<FinanzasPanelProps> = ({
             +${contabilidad.gananciaNetaTotal.toFixed(2)}
           </span>
           <span className="text-[11px] text-emerald-500/80 block mt-1 font-semibold">
-            Margen promedio: {contabilidad.margenPromedio.toFixed(1)}% s/ venta
+            Margen: {contabilidad.margenPromedio.toFixed(1)}% s/ venta
           </span>
         </div>
 
         <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
-          <span className="text-xs text-zinc-400 block mb-1">Retorno de Inversión (ROI)</span>
+          <span className="text-xs text-zinc-400 block mb-1">Costo Operativo</span>
+          <span className="text-2xl font-black text-amber-400 font-mono">
+            ${contabilidad.costoOperativoTotal.toFixed(2)}
+          </span>
+          <span className="text-[11px] text-zinc-500 block mt-1">
+            Material, luz, desgaste y operador
+          </span>
+        </div>
+
+        <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
+          <span className="text-xs text-zinc-400 block mb-1 flex items-center gap-1">
+            <PackageCheck className="w-3.5 h-3.5 text-cyan-400" /> Stock en Taller
+          </span>
           <span className="text-2xl font-black text-cyan-400 font-mono">
+            ${(contabilidad.valorInventarioStock || 0).toFixed(2)}
+          </span>
+          <span className="text-[11px] text-zinc-500 block mt-1">
+            {contabilidad.unidadesEnStockTotal || 0} piezas sin vender
+          </span>
+        </div>
+
+        <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
+          <span className="text-xs text-zinc-400 block mb-1 flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> Pérdidas por Merma
+          </span>
+          <span className="text-2xl font-black text-rose-400 font-mono">
+            -${(contabilidad.costoMermaTotal || 0).toFixed(2)}
+          </span>
+          <span className="text-[11px] text-zinc-500 block mt-1">
+            Impresiones fallidas
+          </span>
+        </div>
+
+        <div className="bg-zinc-900/80 p-5 rounded-2xl border border-zinc-800 shadow-sm">
+          <span className="text-xs text-zinc-400 block mb-1">Retorno (ROI)</span>
+          <span className="text-2xl font-black text-indigo-400 font-mono">
             {contabilidad.roiPorcentaje.toFixed(1)}%
           </span>
           <span className="text-[11px] text-zinc-500 block mt-1">
-            Sobre ${contabilidad.inversionTotal.toFixed(2)} en activos
+            Sobre ${contabilidad.inversionTotal.toFixed(2)} activos
           </span>
         </div>
       </div>

@@ -125,6 +125,14 @@ model TrabajoProduccion {
   ganancia_neta       Float
   margen_porcentaje   Float
   progreso_porcentaje Int                 @default(0)
+  cantidad            Int                 @default(1)
+  tipo_destino        String              @default("CLIENTE") // CLIENTE, STOCK
+  estado_venta        String              @default("PENDIENTE_VENTA") // PENDIENTE_VENTA, EN_STOCK, VENDIDO
+  fecha_venta         DateTime?
+  unidades_en_stock   Int                 @default(0)
+  unidades_vendidas   Int                 @default(0)
+  desperdicio_gramos  Float               @default(0.0)
+  motivo_fallo        String?
   materiales_ams      TrabajoMaterial[]
   fecha_creacion      DateTime            @default(now())
   fecha_completado    DateTime?

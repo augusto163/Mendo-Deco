@@ -48,6 +48,10 @@ export default function BambuFarmDashboard() {
     costoOperadorTotal: 0,
     gramosTotales: 0,
     trabajosCompletadosCount: 0,
+    valorInventarioStock: 0,
+    costoMermaTotal: 0,
+    unidadesEnStockTotal: 0,
+    ventasRegistradasCount: 0,
   });
 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -98,10 +102,11 @@ export default function BambuFarmDashboard() {
       if (jsonTrabajos.success && Array.isArray(jsonTrabajos.data)) {
         setTrabajos(
           jsonTrabajos.data.map((t: any) => {
-            let estado: "ejecucion" | "espera" | "completado" | "cancelado" = "espera";
+            let estado: "ejecucion" | "espera" | "completado" | "cancelado" | "fallido" = "espera";
             if (t.estado === "EN_PROCESO") estado = "ejecucion";
             else if (t.estado === "COMPLETADO") estado = "completado";
             else if (t.estado === "CANCELADO") estado = "cancelado";
+            else if (t.estado === "FALLIDO") estado = "fallido";
 
             return {
               id: t.id,
@@ -131,6 +136,14 @@ export default function BambuFarmDashboard() {
               progresoPorcentaje: t.progreso_porcentaje || 0,
               fecha: t.fecha_creacion ? t.fecha_creacion.split("T")[0] : "2026-09-15",
               prioridad: (t.prioridad || "media").toLowerCase() as "alta" | "media" | "baja",
+              cantidad: t.cantidad || 1,
+              tipoDestino: (t.tipo_destino?.toLowerCase() || "cliente") as "cliente" | "stock",
+              estadoVenta: (t.estado_venta?.toLowerCase() || "pendiente") as "pendiente" | "en_stock" | "vendido",
+              fechaVenta: t.fecha_venta ? t.fecha_venta.split("T")[0] : undefined,
+              unidadesEnStock: t.unidades_en_stock ?? 0,
+              unidadesVendidas: t.unidades_vendidas ?? 0,
+              desperdicioGramos: t.desperdicio_gramos || 0,
+              motivoFallo: t.motivo_fallo || undefined,
               materialesAms: t.materiales_ams || [],
             };
           })
@@ -317,6 +330,54 @@ export default function BambuFarmDashboard() {
     await loadDataFromBackend();
   };
 
+  const handleReportarFallo = async (data: {
+    jobId: number;
+    desperdicioGramos: number;
+    tiempoTranscurridoMin: number;
+    progresoPorcentaje: number;
+    motivoFallo: string;
+  }) => {
+    const res = await fetch("/api/trabajos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: data.jobId,
+        accion: "FALLIDO",
+        desperdicio_gramos: data.desperdicioGramos,
+        minutos_transcurridos: data.tiempoTranscurridoMin,
+        progreso_porcentaje: data.progresoPorcentaje,
+        motivo_fallo: data.motivoFallo,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Error al reportar fallo");
+    showToast(`⚠️ Impresión fallida registrada. Desperdicio: ${data.desperdicioGramos}g.`);
+    await loadDataFromBackend();
+  };
+
+  const handleRegistrarVenta = async (
+    jobId: number,
+    unidades: number,
+    precioUnitario?: number,
+    cliente?: string
+  ) => {
+    const res = await fetch("/api/trabajos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: jobId,
+        accion: "REGISTRAR_VENTA",
+        unidades,
+        precio_unitario: precioUnitario,
+        cliente,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Error al registrar venta");
+    showToast(`💰 ¡Venta de ${unidades} unidad(es) registrada con éxito!`);
+    await loadDataFromBackend();
+  };
+
   // Finance Actions
   const handleSaveConfig = async (cfg: Partial<ConfiguracionCostos>) => {
     const res = await fetch("/api/finanzas", {
@@ -406,6 +467,8 @@ export default function BambuFarmDashboard() {
             onIniciarTrabajo={handleIniciarTrabajo}
             onCompletarTrabajo={handleCompletarTrabajo}
             onCancelarTrabajo={handleCancelarTrabajo}
+            onReportarFallo={handleReportarFallo}
+            onRegistrarVenta={handleRegistrarVenta}
             showToast={showToast}
           />
         )}

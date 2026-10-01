@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   BadgeDollarSign,
   Layers,
+  RefreshCw,
+  Archive,
 } from "lucide-react";
 import { Bobina } from "../types";
 import { BobinaModal } from "./BobinaModal";
@@ -33,10 +35,14 @@ export const FilamentosPanel: React.FC<FilamentosPanelProps> = ({
   const [selectedSpool, setSelectedSpool] = useState<Bobina | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMaterial, setSelectedMaterial] = useState("todos");
+  const [stockStatusTab, setStockStatusTab] = useState<"en_stock" | "agotadas" | "todas">("en_stock");
 
   // Quick weight adjustment state
   const [quickWeighId, setQuickWeighId] = useState<number | null>(null);
   const [quickGrams, setQuickGrams] = useState<number>(500);
+
+  const enStockCount = useMemo(() => spools.filter((s) => s.peso_actual_g > 0).length, [spools]);
+  const agotadasCount = useMemo(() => spools.filter((s) => s.peso_actual_g <= 0).length, [spools]);
 
   // Totales
   const stats = useMemo(() => {
@@ -46,7 +52,7 @@ export const FilamentosPanel: React.FC<FilamentosPanelProps> = ({
       0
     );
     const criticalCount = spools.filter(
-      (s) => (s.peso_actual_g / (s.peso_total_g || 1000)) * 100 < 20
+      (s) => s.peso_actual_g > 0 && (s.peso_actual_g / (s.peso_total_g || 1000)) * 100 < 20
     ).length;
     return {
       totalKg: (totalGrams / 1000).toFixed(2),
@@ -74,9 +80,15 @@ export const FilamentosPanel: React.FC<FilamentosPanelProps> = ({
       const matchMat =
         selectedMaterial === "todos" ||
         s.material.toLowerCase() === selectedMaterial.toLowerCase();
-      return matchQuery && matchMat;
+      const matchStatus =
+        stockStatusTab === "en_stock"
+          ? s.peso_actual_g > 0
+          : stockStatusTab === "agotadas"
+          ? s.peso_actual_g <= 0
+          : true;
+      return matchQuery && matchMat && matchStatus;
     });
-  }, [spools, searchTerm, selectedMaterial]);
+  }, [spools, searchTerm, selectedMaterial, stockStatusTab]);
 
   const handleOpenCreate = () => {
     setSelectedSpool(null);
@@ -141,6 +153,47 @@ export const FilamentosPanel: React.FC<FilamentosPanelProps> = ({
           <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <AlertTriangle className="w-6 h-6" />
           </div>
+        </div>
+      </div>
+
+      {/* Subtabs: En Stock / Agotadas / Todas */}
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setStockStatusTab("en_stock")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              stockStatusTab === "en_stock"
+                ? "bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
+                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>En Stock ({enStockCount})</span>
+          </button>
+
+          <button
+            onClick={() => setStockStatusTab("agotadas")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              stockStatusTab === "agotadas"
+                ? "bg-rose-500 text-white shadow-md shadow-rose-500/20"
+                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5" />
+            <span>Agotadas / Vacías ({agotadasCount})</span>
+          </button>
+
+          <button
+            onClick={() => setStockStatusTab("todas")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              stockStatusTab === "todas"
+                ? "bg-zinc-700 text-white"
+                : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Todas ({spools.length})</span>
+          </button>
         </div>
       </div>
 
@@ -297,17 +350,36 @@ export const FilamentosPanel: React.FC<FilamentosPanelProps> = ({
                   </div>
                 ) : (
                   <div className="flex items-center justify-between gap-1">
-                    <button
-                      onClick={() => {
-                        setQuickWeighId(spool.id);
-                        setQuickGrams(spool.peso_actual_g);
-                      }}
-                      title="Pesar o calibrar stock actual"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
-                    >
-                      <Scale className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Pesar</span>
-                    </button>
+                    {isExhausted ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const newTotal = spool.peso_total_g || 1000;
+                            await onSaveSpool({ id: spool.id, peso_actual_g: newTotal, estado: "EN_USO" });
+                            showToast(`Bobina ${spool.color} reabastecida a ${newTotal}g.`);
+                          } catch (err: any) {
+                            alert("Error al reabastecer: " + err.message);
+                          }
+                        }}
+                        title="Reabastecer con un rollo nuevo (1000g)"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-zinc-950 text-xs font-bold transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Reabastecer (1kg)</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setQuickWeighId(spool.id);
+                          setQuickGrams(spool.peso_actual_g);
+                        }}
+                        title="Pesar o calibrar stock actual"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+                      >
+                        <Scale className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Pesar</span>
+                      </button>
+                    )}
 
                     <div className="flex items-center gap-1">
                       <button
