@@ -2,13 +2,14 @@
 
 import React from "react";
 import { Disc, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
-import { Bobina, TrabajoMaterialAms } from "../types";
+import { Bobina } from "../types";
 import { BambuFilament } from "@/utils/bambuParser";
+import { MaterialSlotUI } from "./types";
 
 interface MultiColorAmsMapperProps {
   detectedFilaments: BambuFilament[];
   spools: Bobina[];
-  materialesAms: TrabajoMaterialAms[];
+  materialesAms: MaterialSlotUI[];
   onChangeMaterial: (index: number, bobinaId: number) => void;
 }
 
@@ -57,7 +58,7 @@ export const MultiColorAmsMapper: React.FC<MultiColorAmsMapperProps> = ({
                   />
                   <div>
                     <span className="text-xs font-semibold text-zinc-200">
-                      Slot AMS #{mat.slot_ams}: {mat.color_nombre}
+                      Slot AMS #{mat.slot_ams}: {mat.color_nombre} ({mat.tipo_material})
                     </span>
                     <span className="text-[11px] text-zinc-400 block">
                       Consumo estimado: <strong className="text-emerald-400">{mat.gramos_usados}g</strong>
@@ -65,11 +66,11 @@ export const MultiColorAmsMapper: React.FC<MultiColorAmsMapperProps> = ({
                   </div>
                 </div>
 
-                {selectedSpool && (
+                {mat.costo_calculado !== undefined && (
                   <div className="text-right">
-                    <span className="text-[11px] text-zinc-400 block">Costo calculado</span>
+                    <span className="text-[11px] text-zinc-400 block">Costo estimado</span>
                     <span className="text-xs font-semibold text-zinc-200">
-                      ${mat.costo_calculado.toFixed(2)}
+                      ${Number(mat.costo_calculado).toFixed(2)}
                     </span>
                   </div>
                 )}
@@ -91,7 +92,7 @@ export const MultiColorAmsMapper: React.FC<MultiColorAmsMapperProps> = ({
                   {spools.map((spool) => (
                     <option key={spool.id} value={spool.id}>
                       {spool.marca} {spool.material} - {spool.color} (Stock: {spool.peso_actual_g}g / $
-                      {(spool.costo_compra / spool.peso_total_g).toFixed(3)}/g)
+                      {spool.costo_gramo ? Number(spool.costo_gramo).toFixed(3) : (spool.costo_compra / (spool.peso_total_g || 1000)).toFixed(3)}/g)
                     </option>
                   ))}
                 </select>
@@ -106,7 +107,7 @@ export const MultiColorAmsMapper: React.FC<MultiColorAmsMapperProps> = ({
                       style={{ backgroundColor: selectedSpool.hex }}
                     />
                     <span className="text-zinc-400">
-                      Quedan <strong>{selectedSpool.peso_actual_g}g</strong>
+                      Quedan <strong>{selectedSpool.peso_actual_g}g</strong> en taller
                     </span>
                   </div>
 

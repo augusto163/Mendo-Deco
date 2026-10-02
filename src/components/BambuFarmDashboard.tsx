@@ -183,19 +183,9 @@ export default function BambuFarmDashboard() {
     loadDataFromBackend();
   }, [loadDataFromBackend]);
 
-  // Order creation from Cotizador
-  const handleOrderCreated = async (jobPayload: any) => {
-    const res = await fetch("/api/trabajos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(jobPayload),
-    });
-    const json = await res.json();
-    if (!json.success) {
-      throw new Error(json.error || "No se pudo registrar la orden en Supabase");
-    }
+  // Cotizacion creation from Cotizador
+  const handleCotizacionCreated = async (cotizacion: any) => {
     await loadDataFromBackend();
-    setActiveTab("produccion");
   };
 
   // Spool ABM
@@ -436,7 +426,7 @@ export default function BambuFarmDashboard() {
             printers={printers}
             spools={spools}
             config={config}
-            onOrderCreated={handleOrderCreated}
+            onCotizacionCreated={handleCotizacionCreated}
             showToast={showToast}
           />
         )}
